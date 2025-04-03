@@ -7,6 +7,7 @@
 	export let onNodeInteract: (nodeName: string) => void; // Event dispatcher for interaction
 
 	let canvasElement: HTMLCanvasElement;
+	let canvasContainer: HTMLElement;
 
 	let scene: THREE.Scene;
 	let camera: THREE.OrthographicCamera; // Orthographic for 2D view
@@ -23,8 +24,13 @@
 		scene = new THREE.Scene();
 		scene.background = new THREE.Color(mapData.theme.backgroundColor);
 
+		// Get container dimensions
+		const containerRect = canvasContainer.getBoundingClientRect();
+		const containerWidth = containerRect.width;
+		const containerHeight = containerRect.height;
+
 		// Orthographic Camera for 2D view - adjust parameters as needed
-		const aspect = window.innerWidth / (window.innerHeight * 0.8); // Adjust height based on layout
+		const aspect = containerWidth / containerHeight;
 		const frustumSize = 10;
 		camera = new THREE.OrthographicCamera(
 			(frustumSize * aspect) / -2,
@@ -37,7 +43,7 @@
 		camera.position.z = 5;
 
 		renderer = new THREE.WebGLRenderer({ canvas: canvasElement, antialias: true });
-		renderer.setSize(window.innerWidth, window.innerHeight * 0.8); // Adjust based on layout
+		renderer.setSize(containerWidth, containerHeight);
 
 		// --- Create Map Elements ---
 		createMapElements();
@@ -168,8 +174,10 @@
 
 	// --- Event Handlers ---
 	function handleResize() {
-		const width = window.innerWidth;
-		const height = window.innerHeight * 0.8; // Match renderer size adjustment
+		// Get actual container dimensions
+		const containerRect = canvasContainer.getBoundingClientRect();
+		const width = containerRect.width;
+		const height = containerRect.height;
 
 		const aspect = width / height;
 		const frustumSize = 10;
@@ -198,21 +206,25 @@
 			case 'ArrowUp':
 			case 'w':
 				// Find connection mostly 'up' from current node
+				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 0, 1);
 				break;
 			case 'ArrowDown':
 			case 's':
 				// Find connection mostly 'down' from current node
+				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 0, -1);
 				break;
 			case 'ArrowLeft':
 			case 'a':
 				// Find connection mostly 'left' from current node
+				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, -1, 0);
 				break;
 			case 'ArrowRight':
 			case 'd':
 				// Find connection mostly 'right' from current node
+				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 1, 0);
 				break;
 		}
@@ -289,12 +301,22 @@
 	}
 </script>
 
-<canvas bind:this={canvasElement}></canvas>
+<div class="canvas-container" bind:this={canvasContainer}>
+	<canvas bind:this={canvasElement}></canvas>
+</div>
 
 <style>
+	.canvas-container {
+		display: block;
+		width: 100%;
+		height: 100%;
+		overflow: hidden; /* Ensure no scrollbars */
+		position: relative;
+	}
 	canvas {
 		display: block; /* Prevent extra space below canvas */
 		width: 100%;
 		height: 100%; /* Fill the main container */
+		touch-action: none; /* Prevent browser handling touch events */
 	}
 </style>
