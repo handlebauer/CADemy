@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import * as THREE from 'three';
 	import type { SubjectMapData, LessonNodeData } from '$lib/types/map';
+	import { createAnimatedSprite, playerSpriteConfig } from '$lib/spriteData';
 
 	export let mapData: SubjectMapData;
 	export let onNodeInteract: (nodeName: string) => void; // Event dispatcher for interaction
@@ -15,7 +16,7 @@
 	let animationFrameId: number;
 
 	// --- State for Player & Nodes ---
-	let playerMesh: THREE.Mesh | null = null; // Will hold the player object
+	let playerSprite: ReturnType<typeof createAnimatedSprite> | null = null;
 	let currentNodeId: string | null = null; // Track player's current node
 	const nodeMeshes = new Map<string, THREE.Mesh>(); // Store node objects
 
@@ -58,7 +59,7 @@
 		if (mapData.nodes.length > 0) {
 			const startNode = mapData.nodes[0];
 			currentNodeId = startNode.id;
-			createOrUpdatePlayer(startNode.position);
+			createOrUpdatePlayer(startNode.position, 'idle');
 		}
 
 		// --- Add Event Listeners ---
@@ -69,7 +70,10 @@
 		// --- Animation Loop ---
 		const animate = () => {
 			animationFrameId = requestAnimationFrame(animate);
-			// Add any animations here (e.g., smooth player movement)
+			// Update sprite animation
+			if (playerSprite) {
+				playerSprite.updateAnimation();
+			}
 			renderer.render(scene, camera);
 		};
 		animate();
@@ -81,7 +85,16 @@
 			canvasElement.removeEventListener('click', handleCanvasClick);
 			cancelAnimationFrame(animationFrameId);
 			// Dispose of Three.js objects (important for preventing memory leaks)
-			// scene.traverse(...) dispose geometries, materials, textures
+			if (playerSprite && playerSprite.sprite) {
+				scene.remove(playerSprite.sprite);
+				// Dispose of materials and textures
+				if (playerSprite.sprite.material instanceof THREE.SpriteMaterial) {
+					if (playerSprite.sprite.material.map) {
+						playerSprite.sprite.material.map.dispose();
+					}
+					playerSprite.sprite.material.dispose();
+				}
+			}
 			renderer.dispose();
 		};
 	});
@@ -106,11 +119,13 @@
 				if (mapData.nodes.length > 0) {
 					const startNode = mapData.nodes[0];
 					currentNodeId = startNode.id;
-					createOrUpdatePlayer(startNode.position);
+					createOrUpdatePlayer(startNode.position, 'idle');
 				} else {
 					// Handle empty map case
-					if (playerMesh) scene.remove(playerMesh);
-					playerMesh = null;
+					if (playerSprite && playerSprite.sprite) {
+						scene.remove(playerSprite.sprite);
+					}
+					playerSprite = null;
 					currentNodeId = null;
 				}
 			} else if (currentNodeId) {
@@ -173,19 +188,14 @@
 	}
 
 	// --- Player Creation / Update ---
-	function createOrUpdatePlayer(position: { x: number; y: number }) {
-		// Simple player shape (make this modular later for sprites)
-		if (!playerMesh) {
-			// This is the placeholder for future player avatar/sprite implementation
-			const playerGeometry = new THREE.CapsuleGeometry(0.2, 0.4, 4, 8); // Example shape
-			const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Red color
-			playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
-			playerMesh.position.z = 0.1; // Slightly in front of nodes/paths
-			scene.add(playerMesh);
+	function createOrUpdatePlayer(position: { x: number; y: number }, direction: string = 'idle') {
+		// Create animated sprite if it doesn't exist
+		if (!playerSprite) {
+			playerSprite = createAnimatedSprite(playerSpriteConfig, scene);
 		}
 
-		playerMesh.position.x = position.x;
-		playerMesh.position.y = position.y;
+		// Update sprite position and animation
+		playerSprite.moveTo(position.x, position.y, direction);
 
 		// Trigger interaction event when player lands on a node
 		const landedNode = mapData.nodes.find((n) => n.id === currentNodeId);
@@ -225,6 +235,7 @@
 		if (!currentNode) return;
 
 		let targetNodeId: string | undefined = undefined;
+		let direction: string = 'idle';
 
 		// Basic directional mapping (improve this logic based on actual map layout)
 		switch (event.key) {
@@ -233,24 +244,28 @@
 				// Find connection mostly 'up' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 0, 1);
+				direction = 'walkUp';
 				break;
 			case 'ArrowDown':
 			case 's':
 				// Find connection mostly 'down' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 0, -1);
+				direction = 'walkDown';
 				break;
 			case 'ArrowLeft':
 			case 'a':
 				// Find connection mostly 'left' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, -1, 0);
+				direction = 'walkLeft';
 				break;
 			case 'ArrowRight':
 			case 'd':
 				// Find connection mostly 'right' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 1, 0);
+				direction = 'walkRight';
 				break;
 		}
 
@@ -258,7 +273,7 @@
 			const targetNode = mapData.nodes.find((n) => n.id === targetNodeId);
 			if (targetNode) {
 				currentNodeId = targetNodeId;
-				createOrUpdatePlayer(targetNode.position); // Move player instantly for now
+				createOrUpdatePlayer(targetNode.position, direction); // Move player with animation
 			}
 		}
 	}
@@ -316,8 +331,17 @@
 			if (currentNodeData && currentNodeData.connections.includes(clickedNodeId)) {
 				const targetNode = mapData.nodes.find((n) => n.id === clickedNodeId);
 				if (targetNode) {
+					// Determine direction for animation
+					const dx = targetNode.position.x - currentNodeData.position.x;
+					const dy = targetNode.position.y - currentNodeData.position.y;
+					
+					// Choose animation direction based on predominant movement direction
+					const direction = Math.abs(dx) > Math.abs(dy)
+						? (dx > 0 ? 'walkRight' : 'walkLeft')
+						: (dy > 0 ? 'walkUp' : 'walkDown');
+						
 					currentNodeId = clickedNodeId;
-					createOrUpdatePlayer(targetNode.position);
+					createOrUpdatePlayer(targetNode.position, direction);
 				}
 			}
 		}
