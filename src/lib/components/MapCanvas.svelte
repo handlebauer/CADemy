@@ -34,8 +34,6 @@
 			if (containerRect.height > 0) containerHeight = containerRect.height;
 		}
 
-		console.log('Container dimensions:', containerWidth, containerHeight);
-
 		// Orthographic Camera for 2D view - adjust parameters as needed
 		const aspect = containerWidth / containerHeight || 1; // Fallback to prevent division by zero
 		const frustumSize = 10;
@@ -88,7 +86,6 @@
 		};
 	});
 
-	// Keep track of if this is first render or a map change
 	// Track the current subject to detect map changes
 	let previousSubject = '';
 
@@ -105,13 +102,11 @@
 
 			// Only reset player position on initial render or when changing maps
 			if (isMapChange) {
-				console.log('Map changed to:', mapData.subject);
 				// Reset player to start node of new map
 				if (mapData.nodes.length > 0) {
 					const startNode = mapData.nodes[0];
 					currentNodeId = startNode.id;
 					createOrUpdatePlayer(startNode.position);
-					console.log('Reset player to start node:', startNode.id);
 				} else {
 					// Handle empty map case
 					if (playerMesh) scene.remove(playerMesh);
@@ -122,7 +117,7 @@
 				// Preserve player position when re-rendering the same map
 				const currentNode = mapData.nodes.find((n) => n.id === currentNodeId);
 				if (currentNode) {
-					console.log('Preserving player at node:', currentNodeId);
+					// Current node still exists, no need to reposition
 				}
 			}
 		}
@@ -179,8 +174,6 @@
 
 	// --- Player Creation / Update ---
 	function createOrUpdatePlayer(position: { x: number; y: number }) {
-		console.log('Creating/updating player at position:', position);
-
 		// Simple player shape (make this modular later for sprites)
 		if (!playerMesh) {
 			// This is the placeholder for future player avatar/sprite implementation
@@ -189,18 +182,15 @@
 			playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
 			playerMesh.position.z = 0.1; // Slightly in front of nodes/paths
 			scene.add(playerMesh);
-			console.log('Created new player mesh:', playerMesh);
 		}
 
 		playerMesh.position.x = position.x;
 		playerMesh.position.y = position.y;
-		console.log('Updated player position to:', playerMesh.position);
 
 		// Trigger interaction event when player lands on a node
 		const landedNode = mapData.nodes.find((n) => n.id === currentNodeId);
 		if (landedNode) {
 			onNodeInteract(landedNode.name);
-			console.log('Interacting with node:', landedNode.name);
 		}
 
 		// Force a renderer update
@@ -229,64 +219,46 @@
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
-		console.log('Key pressed:', event.key);
-
-		if (!currentNodeId) {
-			console.log('No current node ID');
-			return;
-		}
+		if (!currentNodeId) return;
 
 		const currentNode = mapData.nodes.find((n) => n.id === currentNodeId);
-		if (!currentNode) {
-			console.log('Current node not found:', currentNodeId);
-			return;
-		}
+		if (!currentNode) return;
 
-		console.log('Current node:', currentNode);
 		let targetNodeId: string | undefined = undefined;
 
 		// Basic directional mapping (improve this logic based on actual map layout)
-		// This assumes simple left/right/up/down connections which might not be true
-		// You'll need a better way to determine which connection corresponds to which key
-		// based on relative positions (e.g., find connection with highest x for 'right')
 		switch (event.key) {
 			case 'ArrowUp':
 			case 'w':
 				// Find connection mostly 'up' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 0, 1);
-				console.log('Up pressed, target:', targetNodeId);
 				break;
 			case 'ArrowDown':
 			case 's':
 				// Find connection mostly 'down' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 0, -1);
-				console.log('Down pressed, target:', targetNodeId);
 				break;
 			case 'ArrowLeft':
 			case 'a':
 				// Find connection mostly 'left' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, -1, 0);
-				console.log('Left pressed, target:', targetNodeId);
 				break;
 			case 'ArrowRight':
 			case 'd':
 				// Find connection mostly 'right' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 1, 0);
-				console.log('Right pressed, target:', targetNodeId);
 				break;
 		}
 
 		if (targetNodeId) {
 			const targetNode = mapData.nodes.find((n) => n.id === targetNodeId);
 			if (targetNode) {
-				console.log('Moving to node:', targetNode);
 				currentNodeId = targetNodeId;
 				createOrUpdatePlayer(targetNode.position); // Move player instantly for now
-				console.log('Player should be at position:', playerMesh?.position);
 			}
 		}
 	}
@@ -344,13 +316,9 @@
 			if (currentNodeData && currentNodeData.connections.includes(clickedNodeId)) {
 				const targetNode = mapData.nodes.find((n) => n.id === clickedNodeId);
 				if (targetNode) {
-					console.log('Clicked on node:', targetNode);
 					currentNodeId = clickedNodeId;
 					createOrUpdatePlayer(targetNode.position);
 				}
-			} else {
-				// Node not connected to current position - do nothing
-				console.log('Clicked node not connected to current node');
 			}
 		}
 	}

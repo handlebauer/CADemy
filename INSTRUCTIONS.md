@@ -1,63 +1,259 @@
-Technical PRD: Incept Layer 2 - Overworld MVP Implementation
+Below are the technical instructions to ingest a 4x4 sprite sheet and replace the cylinder in your game with a properly animated sprite that displays walking animations for up/down/left/right movement. The approach is designed to be generic and reusable, avoiding code duplication for future sprites. I’ll specify where to place the sprite sheet file and how to integrate it into your existing MapCanvas.svelte.
+Technical Instructions
+1. Place the Sprite Sheet File
+Location: Put sprite_sheet.png in the static/ directory of your SvelteKit project (e.g., static/sprite_sheet.png).
+Reason: SvelteKit serves files from static/ at the root URL (e.g., /sprite_sheet.png), making them accessible to Three.js’s TextureLoader.
+2. Define a Reusable Sprite Animation Config
+File: Create a new file src/lib/spriteData.ts.
+Content: Define a generic sprite configuration structure and the specific config for your 4x4 sprite sheet.
+typescript
+// src/lib/spriteData.ts
+export interface SpriteAnimation {
+  row: number;        // Row in the sprite sheet for this animation
+  numFrames: number;  // Number of frames in the animation
+  fps: number;        // Frames per second
+}
 
-1. Overall Goal:
+export interface SpriteConfig {
+  textureUrl: string;                    // Path to the sprite sheet
+  columns: number;                       // Number of columns in the grid
+  rows: number;                          // Number of rows in the grid
+  animations: Record<string, SpriteAnimation>; // Animation definitions
+}
 
-Refine the existing SvelteKit + Three.js codebase (cademy project) to implement the Minimum Viable Product (MVP) features for the Incept Layer 2 overworld map. The resulting application should be playable, allowing users to switch between 4 subject maps and navigate a character between lesson nodes using keyboard or tap input. Adhere strictly to principles of clean, minimal, and maintainable code, using TypeScript effectively and preparing for future extensions.
+// Configuration for sprite_sheet.png (4x4 grid)
+export const playerSpriteConfig: SpriteConfig = {
+  textureUrl: '/sprite_sheet.png',
+  columns: 4,  // 4 frames per row
+  rows: 4,     // 4 directions
+  animations: {
+    walkNorth: { row: 0, numFrames: 4, fps: 10 }, // Row 0: Up
+    walkEast:  { row: 1, numFrames: 4, fps: 10 }, // Row 1: Right
+    walkSouth: { row: 2, numFrames: 4, fps: 10 }, // Row 2: Down
+    walkWest:  { row: 3, numFrames: 4, fps: 10 }, // Row 3: Left
+    idle:      { row: 0, numFrames: 1, fps: 1 }   // First frame of North as idle
+  }
+};
+Purpose: This separates sprite data from logic, making it reusable for any sprite by importing a different config.
+3. Create a Reusable Sprite Animator Function
+File: Add to src/lib/spriteData.ts.
+Content: Define a function to create and animate a sprite, reusable across components.
+typescript
+// src/lib/spriteData.ts (continued)
+import * as THREE from 'three';
 
-2. Current Codebase Context:
+export function createAnimatedSprite(config: SpriteConfig, scene: THREE.Scene) {
+  const loader = new THREE.TextureLoader();
+  const texture = loader.load(config.textureUrl);
+  texture.repeat.set(1 / config.columns, 1 / config.rows);
 
-Framework: SvelteKit with TypeScript, using Bun runtime/package manager.
-Key Files:
-src/routes/+page.svelte: Main page, includes subject tabs and renders MapCanvas.
-src/lib/components/MapCanvas.svelte: Handles Three.js scene setup, rendering, and basic interaction logic.
-src/lib/mapData.ts: Contains initial map data structure (interfaces LessonNodeData, SubjectMapData) and sample data for 'Math'.
-package.json/bun.lock: Define dependencies (SvelteKit, Three.js, TypeScript, etc.).
-Backend files (drizzle.config.ts, src/lib/server/): Exist but are out of scope for the frontend-only MVP implementation. Ignore these for now.
-README.md: Contains the project summary based on previous discussions. 3. MVP Action Items (Instructions for LLM):
+  const material = new THREE.SpriteMaterial({ map: texture });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.5, 0.5, 1); // Adjust size to match your map scale
+  sprite.position.z = 0.1;        // Above nodes/paths
 
-(Guardrail: Implement only the features described below. Prioritize functionality and clarity over complex optimizations or visual polish for this MVP stage. Use Three.js primitives only for visual representation.)
+  let currentAnimation = 'idle';
+  let animationStartTime = performance.now();
 
-Task 1: Abstract Shared Types
+  // Animation update function
+  function updateAnimation() {
+    const anim = config.animations[currentAnimation];
+    const elapsed = (performance.now() - animationStartTime) / 1000; // Seconds
+    const frameIndex = Math.floor(elapsed * anim.fps) % anim.numFrames;
+    material.map.offset.set(
+      frameIndex / config.columns,
+      (config.rows - 1 - anim.row) / config.rows // Top row is 0
+    );
+  }
 
-Objective: Centralize shared TypeScript type definitions for better maintainability and adherence to best practices.
-Action 1.1: Create a new file: src/lib/types/map.ts.
-Action 1.2: Move the LessonNodeData and SubjectMapData interface definitions from src/lib/mapData.ts to the new src/lib/types/map.ts file.
-Action 1.3: Update src/lib/mapData.ts to import these types: import type { LessonNodeData, SubjectMapData } from '$lib/types/map';.
-Action 1.4: Update src/lib/components/MapCanvas.svelte to import these types: import type { SubjectMapData, LessonNodeData } from '$lib/types/map';.
-Guardrail: Ensure only these two shared interfaces are moved. No other refactoring in this step.
-Task 2: Populate and Theme Map Data
+  // Movement function
+  function moveTo(x: number, y: number, direction: string) {
+    sprite.position.set(x, y, 0.1);
+    currentAnimation = direction;
+    animationStartTime = performance.now();
+  }
 
-Objective: Define basic node structures and unique visual themes for all four subject maps.
-Action 2.1: In src/lib/mapData.ts, populate the nodes array within the maps object for 'Science', 'History', and 'Language'. Each should contain 2-3 LessonNodeData objects with unique id, name, simple position coordinates (e.g., {x: 0, y: 1}, {x: 2, y: 1}), and plausible connections arrays linking adjacent nodes within that subject map.
-Action 2.2: In src/lib/mapData.ts, ensure the theme object for 'Science', 'History', and 'Language' maps has distinct hex color codes for backgroundColor and pathColor (different from 'Math' and each other).
-Guardrail: Keep node positions and connections simple. Ensure connections only reference valid ids within the same subject map.
-Task 3: Enhance Three.js Rendering & Theming
+  scene.add(sprite);
 
-Objective: Visually represent map elements (background, nodes, paths, player) using Three.js primitives, applying the correct theme for the selected map. Design player rendering for future modularity.
-Action 3.1: In src/lib/components/MapCanvas.svelte:
-Verify the reactive block ($: { ... }) correctly updates scene.background using mapData.theme.backgroundColor when the mapData prop changes.
-Inside createMapElements, modify the node material creation. Use a theme color, for example: new THREE.MeshBasicMaterial({ color: new THREE.Color(mapData.theme.pathColor) }). (Ensure nodes are visible against the background).
-Verify path material creation uses new THREE.LineBasicMaterial({ color: new THREE.Color(mapData.theme.pathColor), ... }).
-Action 3.2: In createOrUpdatePlayer function within MapCanvas.svelte:
-Keep the simple CapsuleGeometry and distinct color (e.g., red) for the MVP player playerMesh.
-Ensure the code creating the player mesh (if (!playerMesh) { ... }) is clean and self-contained within this function or called from it. Add a comment indicating this is the placeholder and intended location for future sprite logic.
-Guardrail: Use only THREE.Color, THREE.CircleGeometry, THREE.LineBasicMaterial, THREE.CapsuleGeometry, THREE.MeshBasicMaterial, THREE.BufferGeometry, THREE.Vector3, THREE.Line, THREE.Mesh. No textures, lighting, or complex materials.
-Task 4: Implement Playable Movement Logic
+  return { sprite, updateAnimation, moveTo };
+}
+Purpose: Encapsulates sprite creation and animation logic, reusable by passing a config and scene.
+4. Update MapCanvas.svelte
+File: Modify src/lib/components/MapCanvas.svelte.
+Changes: Replace the cylinder with the animated sprite and integrate movement animations.
+typescript
+<script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+  import * as THREE from 'three';
+  import type { SubjectMapData } from '$lib/types/map';
+  import { createAnimatedSprite, playerSpriteConfig } from '$lib/spriteData';
 
-Objective: Enable the player to move between connected nodes using arrow keys (desktop) or tapping adjacent nodes (mobile).
-Action 4.1: Review and refine the handleKeyDown function in src/lib/components/MapCanvas.svelte. Ensure the findConnectionInDirection helper reliably selects the correct adjacent node ID from the currentNode.connections based on the key pressed and relative node positions. Verify currentNodeId is updated and createOrUpdatePlayer is called correctly.
-Action 4.2: Review and refine the handleCanvasClick function in src/lib/components/MapCanvas.svelte. Ensure the raycasting correctly identifies the clicked node mesh (intersects[0].object). Crucially, verify it checks if the clickedNodeId exists in the currentNodeData.connections array before updating currentNodeId and calling createOrUpdatePlayer.
-Guardrail: Player movement should be instantaneous (snapping to the target node's position). Do not implement animations or transitions between nodes. Movement must be restricted to nodes defined in the connections array of the current node.
-Task 5: Verify Node Interaction Display
+  export let mapData: SubjectMapData;
+  export let onNodeInteract: (nodeName: string) => void;
 
-Objective: Confirm that landing on a node triggers the display of its name.
-Action 5.1: Verify that createOrUpdatePlayer in src/lib/components/MapCanvas.svelte calls onNodeInteract(landedNode.name) after updating the player's position.
-Action 5.2: Verify that src/routes/+page.svelte correctly uses the on:nodeInteract={handleNodeInteraction} directive on the <MapCanvas> component and that the handleNodeInteraction function updates the currentNodeInfo variable, making the popup display.
-Guardrail: The interaction is complete once the node name is displayed temporarily. No further implementation is needed for this task.
-Task 6: Code Quality and Cleanup
+  let canvasElement: HTMLCanvasElement;
+  let canvasContainer: HTMLElement;
+  let scene: THREE.Scene;
+  let camera: THREE.OrthographicCamera;
+  let renderer: THREE.WebGLRenderer;
+  let animationFrameId: number;
+  let playerSprite: ReturnType<typeof createAnimatedSprite>;
+  let currentNodeId: string | null = null;
+  const nodeMeshes = new Map<string, THREE.Mesh>();
 
-Objective: Ensure the implemented code is clean, minimal, readable, and avoids unnecessary complexity or tech debt.
-Action 6.1: Review all modified files (+page.svelte, MapCanvas.svelte, mapData.ts, types/map.ts). Remove any commented-out code blocks (unless explicitly marking areas for future extension, like the player sprite). Remove console logs unless essential for debugging specific complex interactions.
-Action 6.2: Ensure consistent formatting (run bun format or equivalent Prettier command).
-Action 6.3: Add brief, explanatory comments only where the code's purpose isn't immediately obvious (e.g., the raycasting logic, the findConnectionInDirection helper).
-Guardrail: Avoid adding new abstractions or significant refactoring beyond the type extraction in Task 1. Focus on making the existing structure work correctly and clearly for the MVP features.
+  onMount(() => {
+    // Scene setup (unchanged)
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(mapData.theme.backgroundColor);
+    let containerWidth = window.innerWidth;
+    let containerHeight = window.innerHeight * 0.8;
+    if (canvasContainer) {
+      const rect = canvasContainer.getBoundingClientRect();
+      containerWidth = rect.width || containerWidth;
+      containerHeight = rect.height || containerHeight;
+    }
+    const aspect = containerWidth / containerHeight || 1;
+    const frustumSize = 10;
+    camera = new THREE.OrthographicCamera(
+      (frustumSize * aspect) / -2,
+      (frustumSize * aspect) / 2,
+      frustumSize / 2,
+      frustumSize / -2,
+      1,
+      1000
+    );
+    camera.position.z = 5;
+    renderer = new THREE.WebGLRenderer({ canvas: canvasElement, antialias: true });
+    renderer.setSize(containerWidth, containerHeight);
+
+    // Create map elements (unchanged)
+    createMapElements();
+
+    // Initialize player sprite
+    if (mapData.nodes.length > 0) {
+      const startNode = mapData.nodes[0];
+      currentNodeId = startNode.id;
+      playerSprite = createAnimatedSprite(playerSpriteConfig, scene);
+      playerSprite.moveTo(startNode.position.x, startNode.position.y, 'idle');
+      onNodeInteract(startNode.name);
+    }
+
+    // Event listeners (unchanged)
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('keydown', handleKeyDown);
+    canvasElement.addEventListener('click', handleCanvasClick);
+
+    // Animation loop
+    const animate = () => {
+      animationFrameId = requestAnimationFrame(animate);
+      if (playerSprite) playerSprite.updateAnimation();
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('keydown', handleKeyDown);
+      canvasElement.removeEventListener('click', handleCanvasClick);
+      cancelAnimationFrame(animationFrameId);
+      renderer.dispose();
+      if (playerSprite) scene.remove(playerSprite.sprite);
+    };
+  });
+
+  // Reactive map update (unchanged except player handling)
+  $: if (scene && mapData) {
+    scene.background = new THREE.Color(mapData.theme.backgroundColor);
+    clearMapElements();
+    createMapElements();
+    if (mapData.nodes.length > 0 && (!currentNodeId || !mapData.nodes.some(n => n.id === currentNodeId))) {
+      const startNode = mapData.nodes[0];
+      currentNodeId = startNode.id;
+      if (playerSprite) playerSprite.moveTo(startNode.position.x, startNode.position.y, 'idle');
+    }
+  }
+
+  // Unchanged functions: clearMapElements, createMapElements
+
+  function handleKeyDown(event: KeyboardEvent) {
+    if (!currentNodeId) return;
+    const currentNode = mapData.nodes.find((n) => n.id === currentNodeId);
+    if (!currentNode) return;
+    let targetNodeId: string | undefined;
+    let direction: string;
+
+    switch (event.key) {
+      case 'ArrowUp':
+      case 'w':
+        event.preventDefault();
+        targetNodeId = findConnectionInDirection(currentNode, 0, 1);
+        direction = 'walkNorth';
+        break;
+      case 'ArrowDown':
+      case 's':
+        event.preventDefault();
+        targetNodeId = findConnectionInDirection(currentNode, 0, -1);
+        direction = 'walkSouth';
+        break;
+      case 'ArrowLeft':
+      case 'a':
+        event.preventDefault();
+        targetNodeId = findConnectionInDirection(currentNode, -1, 0);
+        direction = 'walkWest';
+        break;
+      case 'ArrowRight':
+      case 'd':
+        event.preventDefault();
+        targetNodeId = findConnectionInDirection(currentNode, 1, 0);
+        direction = 'walkEast';
+        break;
+    }
+
+    if (targetNodeId && playerSprite) {
+      const targetNode = mapData.nodes.find((n) => n.id === targetNodeId);
+      if (targetNode) {
+        currentNodeId = targetNodeId;
+        playerSprite.moveTo(targetNode.position.x, targetNode.position.y, direction);
+        onNodeInteract(targetNode.name);
+      }
+    }
+  }
+
+  function handleCanvasClick(event: MouseEvent) {
+    const rect = canvasElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(Array.from(nodeMeshes.values()));
+
+    if (intersects.length > 0 && playerSprite) {
+      const clickedNodeMesh = intersects[0].object as THREE.Mesh;
+      const clickedNodeId = clickedNodeMesh.userData.id;
+      const currentNodeData = mapData.nodes.find((n) => n.id === currentNodeId);
+      if (currentNodeData?.connections.includes(clickedNodeId)) {
+        const targetNode = mapData.nodes.find((n) => n.id === clickedNodeId);
+        if (targetNode) {
+          const dx = targetNode.position.x - currentNodeData.position.x;
+          const dy = targetNode.position.y - currentNodeData.position.y;
+          const direction = Math.abs(dx) > Math.abs(dy)
+            ? (dx > 0 ? 'walkEast' : 'walkWest')
+            : (dy > 0 ? 'walkNorth' : 'walkSouth');
+          currentNodeId = clickedNodeId;
+          playerSprite.moveTo(targetNode.position.x, targetNode.position.y, direction);
+          onNodeInteract(targetNode.name);
+        }
+      }
+    }
+  }
+
+  // Unchanged: handleResize, findConnectionInDirection
+</script>
+
+<!-- HTML unchanged -->
+5. Notes on Reusability
+Adding Another Sprite: To add a new sprite (e.g., an enemy), define a new config in spriteData.ts (e.g., enemySpriteConfig), then call createAnimatedSprite(enemySpriteConfig, scene) in MapCanvas.svelte or another component. The logic remains identical.
+Cleanup: The sprite and its material are removed in onDestroy, ensuring no memory leaks.
+Generic: The createAnimatedSprite function works with any sprite sheet config, avoiding duplication.
+This replaces the cylinder with a sprite animated from sprite_sheet.png, showing walking animations based on movement direction, and keeps the system reusable for future sprites. Place sprite_sheet.png in static/ and follow the steps above.
