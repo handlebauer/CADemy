@@ -1,9 +1,10 @@
 // for information about these interfaces
 declare global {
 	namespace App {
+		// Simplified for MVP - no backend/auth needed
 		interface Locals {
-			user: import('$lib/server/auth').SessionValidationResult['user'];
-			session: import('$lib/server/auth').SessionValidationResult['session'];
+			user: null;
+			session: null;
 		}
 	}
 }
