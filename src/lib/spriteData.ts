@@ -20,11 +20,11 @@ export const playerSpriteConfig: SpriteConfig = {
   columns: 4,  // 4 frames per row
   rows: 4,     // 4 directions
   animations: {
-    walkDown:  { row: 0, numFrames: 4, fps: 10 }, // Row 0: Down
-    walkLeft:  { row: 1, numFrames: 4, fps: 10 }, // Row 1: Left
-    walkUp:    { row: 2, numFrames: 4, fps: 10 }, // Row 2: Up
-    walkRight: { row: 3, numFrames: 4, fps: 10 }, // Row 3: Right
-    idle:      { row: 0, numFrames: 1, fps: 1 }   // First frame of Down as idle
+    walkUp:    { row: 0, numFrames: 4, fps: 10 }, // Row 0: Up
+    walkRight: { row: 1, numFrames: 4, fps: 10 }, // Row 1: Right
+    walkDown:  { row: 2, numFrames: 4, fps: 10 }, // Row 2: Down
+    walkLeft:  { row: 3, numFrames: 4, fps: 10 }, // Row 3: Left
+    idle:      { row: 2, numFrames: 1, fps: 1 }   // First frame of Down as idle
   }
 };
 
@@ -37,8 +37,8 @@ export function createAnimatedSprite(config: SpriteConfig, scene: THREE.Scene) {
 
   const material = new THREE.SpriteMaterial({ map: texture });
   const sprite = new THREE.Sprite(material);
-  sprite.scale.set(0.6, 0.6, 1); // Adjust size to match your map scale
-  sprite.position.z = 0.1;        // Above nodes/paths
+  sprite.scale.set(1, 1, 1); // Larger size to allow overflow from nodes
+  sprite.position.z = 0.1;   // Above nodes/paths
 
   let currentAnimation = 'idle';
   let animationStartTime = performance.now();
