@@ -59,7 +59,7 @@
 		if (mapData.nodes.length > 0) {
 			const startNode = mapData.nodes[0];
 			currentNodeId = startNode.id;
-			createOrUpdatePlayer(startNode.position, 'idle');
+			createOrUpdatePlayer(startNode.position, 'idleDown');
 		}
 
 		// --- Add Event Listeners ---
@@ -119,7 +119,7 @@
 				if (mapData.nodes.length > 0) {
 					const startNode = mapData.nodes[0];
 					currentNodeId = startNode.id;
-					createOrUpdatePlayer(startNode.position, 'idle');
+					createOrUpdatePlayer(startNode.position, 'idleDown');
 				} else {
 					// Handle empty map case
 					if (playerSprite && playerSprite.sprite) {
@@ -188,7 +188,7 @@
 	}
 
 	// --- Player Creation / Update ---
-	function createOrUpdatePlayer(position: { x: number; y: number }, direction: string = 'idle') {
+	function createOrUpdatePlayer(position: { x: number; y: number }, direction: string = 'idleDown') {
 		// Create animated sprite if it doesn't exist
 		if (!playerSprite) {
 			playerSprite = createAnimatedSprite(playerSpriteConfig, scene);
