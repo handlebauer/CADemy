@@ -52,6 +52,8 @@ export function createAnimatedSprite(config: SpriteConfig, scene: THREE.Scene) {
 
   let currentAnimation = 'idle';
   let animationStartTime = performance.now();
+  let animationTimeoutId: number | null = null; // Track current animation timeout
+  let lastDirection: string | null = null; // Track last movement direction
 
   // Animation update function
   function updateAnimation() {
@@ -79,18 +81,32 @@ export function createAnimatedSprite(config: SpriteConfig, scene: THREE.Scene) {
     
     // Update animation based on direction
     if (direction in config.animations) {
+      // Cancel any pending animation timeouts to prevent them from overriding 
+      // the new animation we're about to start
+      if (animationTimeoutId !== null) {
+        clearTimeout(animationTimeoutId);
+        animationTimeoutId = null;
+      }
+      
       // Set the animation
       currentAnimation = direction;
       animationStartTime = performance.now();
+      lastDirection = direction;
       
       // Schedule switching to idle animation after movement completes
       if (direction.startsWith('walk')) {
         // Extract direction (Up/Down/Left/Right) and create idle direction name
         const directionPart = direction.substring(4); // Remove 'walk' prefix
+        const idleDirection = 'idle' + directionPart;
         
-        setTimeout(() => {
-          currentAnimation = 'idle' + directionPart;
-          animationStartTime = performance.now();
+        // Store the timeout ID so we can cancel it if needed
+        animationTimeoutId = window.setTimeout(() => {
+          // Only apply the idle transition if this is still the most recent direction
+          if (lastDirection === direction) {
+            currentAnimation = idleDirection;
+            animationStartTime = performance.now();
+            animationTimeoutId = null;
+          }
         }, 500); // Adjust time as needed for walk animation duration
       }
     }
