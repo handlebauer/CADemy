@@ -2,6 +2,7 @@
 // Defines map data implementation
 
 import type { LessonNodeData, SubjectMapData } from '$lib/types/map';
+import { Subject } from '$lib/types/subjects';
 
 // --- Initial MVP Data ---
 // Define initial data for each subject map here
@@ -107,6 +108,6 @@ export const maps: Record<string, SubjectMapData> = {
 };
 
 // Helper function to get map data (can be expanded later)
-export function getMapData(subject: string): SubjectMapData | undefined {
+export function getMapData(subject: Subject): SubjectMapData | undefined {
 	return maps[subject];
 }

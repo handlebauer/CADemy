@@ -1,16 +1,22 @@
 <script lang="ts">
+	// External imports
 	import { onMount } from 'svelte';
+
+	// Component imports
 	import MapCanvas from '$lib/components/MapCanvas.svelte';
+
+	// Type imports
 	import type { SubjectMapData } from '$lib/types/map';
+	import { SUBJECTS } from '$lib/types/subjects';
+
+	// Utility imports
 	import { getMapData } from '$lib/mapData';
 
-	let selectedSubject: string = 'Math'; // Default subject
+	let selectedSubject: string = SUBJECTS[0]; // Default to first subject
 	let currentMapData: SubjectMapData | undefined;
 
 	// Reactive statement: $: ensures this runs whenever selectedSubject changes
 	$: currentMapData = getMapData(selectedSubject);
-
-	const subjects = ['Math', 'Science', 'History', 'Language'];
 
 	function selectSubject(subject: string) {
 		selectedSubject = subject;
@@ -30,7 +36,7 @@
 	<header>
 		<h1>Incept Layer 2 - Overworld</h1>
 		<nav class="subject-tabs">
-			{#each subjects as subject}
+			{#each SUBJECTS as subject}
 				<button on:click={() => selectSubject(subject)} class:active={selectedSubject === subject}>
 					{subject}
 				</button>
