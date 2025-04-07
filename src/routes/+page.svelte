@@ -58,10 +58,6 @@
 			</div>
 		{/if}
 	</main>
-
-	<footer>
-		<p>MVP - Subject: {selectedSubject}</p>
-	</footer>
 </div>
 
 <style>
@@ -103,12 +99,5 @@
 		padding: 10px 20px;
 		border-radius: 5px;
 		z-index: 10;
-	}
-	footer {
-		padding: 0.5rem 1rem;
-		background-color: #eee;
-		border-top: 1px solid #ccc;
-		font-size: 0.8em;
-		text-align: center;
 	}
 </style>
