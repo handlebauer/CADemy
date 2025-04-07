@@ -90,8 +90,8 @@
 		background-color: #f8f8f8; /* Default background */
 	}
 	.node-info-popup {
-		position: absolute;
-		bottom: 20px;
+		position: fixed; /* Changed from absolute to fixed */
+		bottom: 10vh; /* Use viewport height units instead of pixels */
 		left: 50%;
 		transform: translateX(-50%);
 		background-color: rgba(0, 0, 0, 0.7);
