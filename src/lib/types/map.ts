@@ -1,5 +1,6 @@
 // src/lib/types/map.ts
 // Defines the structure for our map data
+import type { Subject } from './subjects';
 
 export interface LessonNodeData {
 	id: string; // Unique ID for this node (e.g., 'math-node-1')
@@ -10,7 +11,7 @@ export interface LessonNodeData {
 }
 
 export interface SubjectMapData {
-	subject: 'Math' | 'Science' | 'History' | 'Language';
+	subject: Subject;
 	theme: {
 		// Basic theming example
 		backgroundColor: string;

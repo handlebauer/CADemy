@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import * as THREE from 'three';
 	import type { SubjectMapData, LessonNodeData } from '$lib/types/map';
+	import { createAnimatedSprite, playerSpriteConfig } from '$lib/spriteData';
 
 	export let mapData: SubjectMapData;
 	export let onNodeInteract: (nodeName: string) => void; // Event dispatcher for interaction
@@ -15,7 +16,7 @@
 	let animationFrameId: number;
 
 	// --- State for Player & Nodes ---
-	let playerMesh: THREE.Mesh | null = null; // Will hold the player object
+	let playerSprite: ReturnType<typeof createAnimatedSprite> | null = null;
 	let currentNodeId: string | null = null; // Track player's current node
 	const nodeMeshes = new Map<string, THREE.Mesh>(); // Store node objects
 
@@ -24,15 +25,9 @@
 		scene = new THREE.Scene();
 		scene.background = new THREE.Color(mapData.theme.backgroundColor);
 
-		// Get container dimensions - fall back to window if container not ready
-		let containerWidth = window.innerWidth;
-		let containerHeight = window.innerHeight * 0.8;
-
-		if (canvasContainer) {
-			const containerRect = canvasContainer.getBoundingClientRect();
-			if (containerRect.width > 0) containerWidth = containerRect.width;
-			if (containerRect.height > 0) containerHeight = containerRect.height;
-		}
+		const containerRect = canvasContainer.getBoundingClientRect();
+		let containerWidth = containerRect.width;
+		let containerHeight = containerRect.height;
 
 		// Orthographic Camera for 2D view - adjust parameters as needed
 		const aspect = containerWidth / containerHeight || 1; // Fallback to prevent division by zero
@@ -58,7 +53,7 @@
 		if (mapData.nodes.length > 0) {
 			const startNode = mapData.nodes[0];
 			currentNodeId = startNode.id;
-			createOrUpdatePlayer(startNode.position);
+			createOrUpdatePlayer(startNode.position, 'idleDown');
 		}
 
 		// --- Add Event Listeners ---
@@ -69,7 +64,10 @@
 		// --- Animation Loop ---
 		const animate = () => {
 			animationFrameId = requestAnimationFrame(animate);
-			// Add any animations here (e.g., smooth player movement)
+			// Update sprite animation
+			if (playerSprite) {
+				playerSprite.updateAnimation();
+			}
 			renderer.render(scene, camera);
 		};
 		animate();
@@ -81,7 +79,16 @@
 			canvasElement.removeEventListener('click', handleCanvasClick);
 			cancelAnimationFrame(animationFrameId);
 			// Dispose of Three.js objects (important for preventing memory leaks)
-			// scene.traverse(...) dispose geometries, materials, textures
+			if (playerSprite && playerSprite.sprite) {
+				scene.remove(playerSprite.sprite);
+				// Dispose of materials and textures
+				if (playerSprite.sprite.material instanceof THREE.SpriteMaterial) {
+					if (playerSprite.sprite.material.map) {
+						playerSprite.sprite.material.map.dispose();
+					}
+					playerSprite.sprite.material.dispose();
+				}
+			}
 			renderer.dispose();
 		};
 	});
@@ -106,11 +113,13 @@
 				if (mapData.nodes.length > 0) {
 					const startNode = mapData.nodes[0];
 					currentNodeId = startNode.id;
-					createOrUpdatePlayer(startNode.position);
+					createOrUpdatePlayer(startNode.position, 'idleDown');
 				} else {
 					// Handle empty map case
-					if (playerMesh) scene.remove(playerMesh);
-					playerMesh = null;
+					if (playerSprite && playerSprite.sprite) {
+						scene.remove(playerSprite.sprite);
+					}
+					playerSprite = null;
 					currentNodeId = null;
 				}
 			} else if (currentNodeId) {
@@ -173,19 +182,14 @@
 	}
 
 	// --- Player Creation / Update ---
-	function createOrUpdatePlayer(position: { x: number; y: number }) {
-		// Simple player shape (make this modular later for sprites)
-		if (!playerMesh) {
-			// This is the placeholder for future player avatar/sprite implementation
-			const playerGeometry = new THREE.CapsuleGeometry(0.2, 0.4, 4, 8); // Example shape
-			const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Red color
-			playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
-			playerMesh.position.z = 0.1; // Slightly in front of nodes/paths
-			scene.add(playerMesh);
+	function createOrUpdatePlayer(position: { x: number; y: number }, direction: string = 'idleDown') {
+		// Create animated sprite if it doesn't exist
+		if (!playerSprite) {
+			playerSprite = createAnimatedSprite(playerSpriteConfig, scene);
 		}
 
-		playerMesh.position.x = position.x;
-		playerMesh.position.y = position.y;
+		// Update sprite position and animation
+		playerSprite.moveTo(position.x, position.y, direction);
 
 		// Trigger interaction event when player lands on a node
 		const landedNode = mapData.nodes.find((n) => n.id === currentNodeId);
@@ -225,6 +229,7 @@
 		if (!currentNode) return;
 
 		let targetNodeId: string | undefined = undefined;
+		let direction: string = 'idle';
 
 		// Basic directional mapping (improve this logic based on actual map layout)
 		switch (event.key) {
@@ -233,33 +238,43 @@
 				// Find connection mostly 'up' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 0, 1);
+				direction = 'walkUp';
 				break;
 			case 'ArrowDown':
 			case 's':
 				// Find connection mostly 'down' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 0, -1);
+				direction = 'walkDown';
 				break;
 			case 'ArrowLeft':
 			case 'a':
 				// Find connection mostly 'left' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, -1, 0);
+				direction = 'walkLeft';
 				break;
 			case 'ArrowRight':
 			case 'd':
 				// Find connection mostly 'right' from current node
 				event.preventDefault(); // Prevent browser scrolling
 				targetNodeId = findConnectionInDirection(currentNode, 1, 0);
+				direction = 'walkRight';
 				break;
 		}
 
 		if (targetNodeId) {
+			// Valid path exists - move player to the target node
 			const targetNode = mapData.nodes.find((n) => n.id === targetNodeId);
 			if (targetNode) {
 				currentNodeId = targetNodeId;
-				createOrUpdatePlayer(targetNode.position); // Move player instantly for now
+				createOrUpdatePlayer(targetNode.position, direction); // Move player with animation
 			}
+		} else if (direction !== 'idle') {
+			// No valid path, but key was pressed - just update the sprite direction
+			// Convert walk direction to idle direction
+			const facingDirection = 'idle' + direction.substring(4); // e.g., 'walkUp' -> 'idleUp'
+			createOrUpdatePlayer(currentNode.position, facingDirection);
 		}
 	}
 
@@ -310,15 +325,33 @@
 		if (intersects.length > 0) {
 			const clickedNodeMesh = intersects[0].object as THREE.Mesh;
 			const clickedNodeId = clickedNodeMesh.userData.id;
-
-			// Check if the clicked node is connected to the current node
+			
+			// Get current node data
 			const currentNodeData = mapData.nodes.find((n) => n.id === currentNodeId);
-			if (currentNodeData && currentNodeData.connections.includes(clickedNodeId)) {
-				const targetNode = mapData.nodes.find((n) => n.id === clickedNodeId);
-				if (targetNode) {
-					currentNodeId = clickedNodeId;
-					createOrUpdatePlayer(targetNode.position);
-				}
+			if (!currentNodeData) return;
+			
+			// Get target node data
+			const targetNode = mapData.nodes.find((n) => n.id === clickedNodeId);
+			if (!targetNode) return;
+			
+			// Determine direction for animation
+			const dx = targetNode.position.x - currentNodeData.position.x;
+			const dy = targetNode.position.y - currentNodeData.position.y;
+			
+			// Choose animation direction based on predominant movement direction
+			const direction = Math.abs(dx) > Math.abs(dy)
+				? (dx > 0 ? 'walkRight' : 'walkLeft')
+				: (dy > 0 ? 'walkUp' : 'walkDown');
+			
+			// Check if the clicked node is connected to the current node
+			if (currentNodeData.connections.includes(clickedNodeId)) {
+				// Connected node - move to it
+				currentNodeId = clickedNodeId;
+				createOrUpdatePlayer(targetNode.position, direction);
+			} else {
+				// Not connected - just face that direction
+				const facingDirection = 'idle' + direction.substring(4); // e.g., 'walkRight' -> 'idleRight'
+				createOrUpdatePlayer(currentNodeData.position, facingDirection);
 			}
 		}
 	}
