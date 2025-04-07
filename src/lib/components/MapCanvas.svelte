@@ -25,15 +25,9 @@
 		scene = new THREE.Scene();
 		scene.background = new THREE.Color(mapData.theme.backgroundColor);
 
-		// Get container dimensions - fall back to window if container not ready
-		let containerWidth = window.innerWidth;
-		let containerHeight = window.innerHeight * 0.8;
-
-		if (canvasContainer) {
-			const containerRect = canvasContainer.getBoundingClientRect();
-			if (containerRect.width > 0) containerWidth = containerRect.width;
-			if (containerRect.height > 0) containerHeight = containerRect.height;
-		}
+		const containerRect = canvasContainer.getBoundingClientRect();
+		let containerWidth = containerRect.width;
+		let containerHeight = containerRect.height;
 
 		// Orthographic Camera for 2D view - adjust parameters as needed
 		const aspect = containerWidth / containerHeight || 1; // Fallback to prevent division by zero
