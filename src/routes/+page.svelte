@@ -5,20 +5,21 @@
 	// Component imports
 	import MapCanvas from '$lib/components/MapCanvas.svelte';
 
-	// Type imports
+	// Type & constant imports
 	import type { SubjectMapData } from '$lib/types/map';
+	import type { Subject } from '$lib/types/subjects';
 	import { SUBJECTS } from '$lib/types/subjects';
 
 	// Utility imports
 	import { getMapData } from '$lib/mapData';
 
-	let selectedSubject: string = SUBJECTS[0]; // Default to first subject
+	let selectedSubject: Subject = SUBJECTS[0]; // Default to first subject
 	let currentMapData: SubjectMapData | undefined;
 
 	// Reactive statement: $: ensures this runs whenever selectedSubject changes
 	$: currentMapData = getMapData(selectedSubject);
 
-	function selectSubject(subject: string) {
+	function selectSubject(subject: Subject) {
 		selectedSubject = subject;
 	}
 

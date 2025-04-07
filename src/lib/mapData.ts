@@ -2,7 +2,7 @@
 // Defines map data implementation
 
 import type { LessonNodeData, SubjectMapData } from '$lib/types/map';
-import { Subject } from '$lib/types/subjects';
+import type { Subject } from '$lib/types/subjects';
 
 // --- Initial MVP Data ---
 // Define initial data for each subject map here
