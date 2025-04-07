@@ -23,13 +23,23 @@
 		selectedSubject = subject;
 	}
 
-	// Example interaction display
+	// Node interaction display
 	let currentNodeInfo: string | null = null;
+	let infoTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 	function handleNodeInteraction(nodeName: string) {
 		currentNodeInfo = `Interacting with: ${nodeName}`;
-		// Hide info after a delay
-		setTimeout(() => (currentNodeInfo = null), 3000);
+		
+		// Clear any existing timeout to avoid premature hiding
+		if (infoTimeoutId !== null) {
+			clearTimeout(infoTimeoutId);
+		}
+		
+		// Set new timeout
+		infoTimeoutId = setTimeout(() => {
+			currentNodeInfo = null;
+			infoTimeoutId = null;
+		}, 3000);
 	}
 </script>
 

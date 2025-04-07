@@ -107,6 +107,11 @@
 			clearMapElements();
 			createMapElements();
 
+			// Reset last interacted node when map changes
+			if (isMapChange) {
+				lastInteractedNodeId = null;
+			}
+
 			// Only reset player position on initial render or when changing maps
 			if (isMapChange) {
 				// Reset player to start node of new map
@@ -181,6 +186,9 @@
 		});
 	}
 
+	// Track last node for interaction notifications
+	let lastInteractedNodeId: string | null = null;
+
 	// --- Player Creation / Update ---
 	function createOrUpdatePlayer(position: { x: number; y: number }, direction: string = 'idleDown') {
 		// Create animated sprite if it doesn't exist
@@ -191,9 +199,10 @@
 		// Update sprite position and animation
 		playerSprite.moveTo(position.x, position.y, direction);
 
-		// Trigger interaction event when player lands on a node
+		// Only trigger interaction event when player lands on a NEW node
 		const landedNode = mapData.nodes.find((n) => n.id === currentNodeId);
-		if (landedNode) {
+		if (landedNode && currentNodeId !== lastInteractedNodeId) {
+			lastInteractedNodeId = currentNodeId;
 			onNodeInteract(landedNode.name);
 		}
 
