@@ -1,9 +1,15 @@
 <script lang="ts">
+	// External imports
 	import { onMount, onDestroy } from 'svelte';
 	import * as THREE from 'three';
+
+	// Type & constant imports
 	import type { SubjectMapData, LessonNodeData } from '$lib/types/map';
+
+	// Utility imports
 	import { createAnimatedSprite, playerSpriteConfig } from '$lib/spriteData';
 
+	// Declare props
 	export let mapData: SubjectMapData;
 	export let onNodeInteract: (nodeName: string) => void; // Event dispatcher for interaction
 
