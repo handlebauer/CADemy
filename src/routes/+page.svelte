@@ -29,12 +29,12 @@
 
 	function handleNodeInteraction(nodeName: string) {
 		currentNodeInfo = `Interacting with: ${nodeName}`;
-		
+
 		// Clear any existing timeout to avoid premature hiding
 		if (infoTimeoutId !== null) {
 			clearTimeout(infoTimeoutId);
 		}
-		
+
 		// Set new timeout
 		infoTimeoutId = setTimeout(() => {
 			currentNodeInfo = null;
