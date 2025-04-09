@@ -1,7 +1,7 @@
 // src/lib/mapData.ts
 // Defines map data implementation
 
-import type { LessonNodeData, SubjectMapData } from '$lib/types/map';
+import type { SubjectMapData } from '$lib/types/map';
 import type { Subject } from '$lib/types/subjects';
 
 // --- Initial MVP Data ---
