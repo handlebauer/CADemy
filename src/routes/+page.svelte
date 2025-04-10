@@ -23,11 +23,9 @@
 
 	$: currentMapData = getMapData(selectedSubject);
 	$: {
-		// When subject changes, ensure any active minigame is closed
-		// and selection is cleared in the store.
 		if (selectedSubject) {
-			minigameStore.closeActiveMinigame();
-			minigameStore.selectNode(null);
+			minigameStore.closeActiveMinigame(); // When subject changes, ensure any active minigame is closed
+			minigameStore.selectNode(null); // Clear node selection
 			clearNodeInfoPopup(); // Also clear the page's popup
 		}
 	}
@@ -65,7 +63,6 @@
 		} else {
 			currentNodeInfo = `Lesson: ${node.name}`;
 		}
-		// No timeout needed
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -105,7 +102,6 @@
 		{/if}
 
 		<!-- Page-level Node Interaction / Store Error Popup -->
-		<!-- Display store error OR interaction prompt -->
 		{#if minigameError || currentNodeInfo}
 			<div class="node-info-popup {minigameError ? 'error' : ''}">
 				{minigameError || currentNodeInfo}
