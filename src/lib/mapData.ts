@@ -3,6 +3,7 @@
 
 import type { SubjectMapData } from '$lib/types/map';
 import type { Subject } from '$lib/types/subjects';
+import { Minigame } from '$lib/types/minigames';
 
 // --- Initial MVP Data ---
 // Define initial data for each subject map here
@@ -29,7 +30,14 @@ export const maps: Record<string, SubjectMapData> = {
 				id: 'math-node-3',
 				name: 'Subtraction Intro',
 				position: { x: 2, y: 0 },
-				connections: ['math-node-2']
+				connections: ['math-node-2', 'math-node-4']
+			},
+			{
+				id: 'math-node-4',
+				name: 'Equation Arena',
+				position: { x: 4, y: 0 },
+				connections: ['math-node-3'],
+				minigame: Minigame.EquationArena
 			}
 		]
 	},
