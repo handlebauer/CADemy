@@ -13,7 +13,7 @@ export const minigameRegistry: Map<Minigame, () => Promise<typeof SvelteComponen
 	[
 		Minigame.EquationArena,
 		() =>
-			import('$lib/minigames/math/EquationArena.svelte').then(
+			import('$lib/minigames/math/EquationArena/EquationArena.svelte').then(
 				(m) => m.default as unknown as typeof SvelteComponent
 			)
 	]

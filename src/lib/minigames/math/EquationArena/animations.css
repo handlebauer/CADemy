@@ -1,0 +1,121 @@
+/* Player Hit Animation */
+@keyframes shake-player-hit {
+	0%,
+	100% {
+		transform: translateX(0);
+	}
+	25% {
+		transform: translateX(calc(-1 * var(--shake-intensity, 8px)));
+	}
+	50% {
+		transform: translateX(var(--shake-intensity, 8px));
+	}
+	75% {
+		transform: translateX(calc(-1 * var(--shake-intensity, 8px)));
+	}
+}
+
+/* Star Animation */
+@keyframes fall-and-fade {
+	0% {
+		transform: translateY(-10px); /* Start slightly above */
+		opacity: 1;
+	}
+	100% {
+		transform: translateY(60px); /* Fall distance */
+		opacity: 0;
+	}
+}
+
+/* Pulse Correct Animation */
+@keyframes pulse-correct {
+	0% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.05);
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+
+/* Shake Incorrect Animation */
+@keyframes shake-incorrect {
+	0%,
+	100% {
+		transform: translateX(0);
+	}
+	10%,
+	30%,
+	50%,
+	70%,
+	90% {
+		transform: translateX(-5px);
+	}
+	20%,
+	40%,
+	60%,
+	80% {
+		transform: translateX(5px);
+	}
+}
+
+/* Show Damage Animation */
+@keyframes show-damage {
+	0% {
+		opacity: 1;
+		transform: translate(-50%, -50%) scale(0.8); /* Start slightly smaller */
+	}
+	20% {
+		transform: translate(-50%, -65%) scale(1.1); /* Pop up and scale up */
+	}
+	80% {
+		opacity: 1;
+		transform: translate(-50%, -75%) scale(1); /* Drift upwards */
+	}
+	100% {
+		opacity: 0; /* Fade out */
+		transform: translate(-50%, -80%) scale(0.9); /* Continue drift and shrink slightly */
+	}
+}
+
+/* Victory Pop Animation */
+@keyframes victory-pop {
+	0% {
+		transform: scale(0.5);
+		opacity: 0;
+	}
+	70% {
+		transform: scale(1.1);
+		opacity: 1;
+	}
+	100% {
+		transform: scale(1);
+		opacity: 1;
+	}
+}
+
+/* Enemy Defeat Animation */
+@keyframes enemy-defeat {
+	0% {
+		filter: grayscale(0);
+	}
+	30% {
+		filter: grayscale(0.8);
+	}
+	100% {
+		filter: grayscale(1);
+	}
+}
+
+/* Pulse Shield Bar Animation */
+@keyframes pulse-shield-bar {
+	0%,
+	100% {
+		box-shadow: 0 0 7px rgba(52, 152, 219, 0.6); /* Slightly stronger glow */
+	}
+	50% {
+		box-shadow: 0 0 12px rgba(52, 152, 219, 0.9); /* Stronger glow peak */
+	}
+}
