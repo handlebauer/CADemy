@@ -1,19 +1,6 @@
 // src/lib/spriteData.ts
 import * as THREE from 'three';
-
-export interface SpriteAnimation {
-  row: number;                 // Row in the sprite sheet for this animation
-  numFrames: number;           // Number of frames in the animation
-  fps: number;                 // Frames per second
-  frameStart?: number;         // Optional start frame index (default: 0)
-}
-
-export interface SpriteConfig {
-  textureUrl: string;                    // Path to the sprite sheet
-  columns: number;                       // Number of columns in the grid
-  rows: number;                          // Number of rows in the grid
-  animations: Record<string, SpriteAnimation>; // Animation definitions
-}
+import type {SpriteAnimation, SpriteConfig} from '$lib/types/sprites';
 
 // Configuration for explorer_sprite_sheet.png (4x4 grid)
 export const playerSpriteConfig: SpriteConfig = {
@@ -32,9 +19,6 @@ export const playerSpriteConfig: SpriteConfig = {
     idleRight: { row: 1, numFrames: 1, fps: 1, frameStart: 1 }, // Second frame of Right
     idleDown:  { row: 2, numFrames: 1, fps: 1, frameStart: 1 }, // Second frame of Down
     idleLeft:  { row: 3, numFrames: 1, fps: 1, frameStart: 1 }, // Second frame of Left
-    
-    // Default idle (facing down)
-    idle:      { row: 2, numFrames: 1, fps: 1, frameStart: 1 }  // Second frame of Down
   }
 };
 
@@ -50,7 +34,7 @@ export function createAnimatedSprite(config: SpriteConfig, scene: THREE.Scene) {
   sprite.scale.set(1, 1, 1); // Larger size to allow overflow from nodes
   sprite.position.z = 0.1;   // Above nodes/paths
 
-  let currentAnimation = 'idle';
+  let currentAnimation = 'idleDown';
   let animationStartTime = performance.now();
   let animationTimeoutId: number | null = null; // Track current animation timeout
   let lastDirection: string | null = null; // Track last movement direction
