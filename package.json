@@ -5,6 +5,8 @@
 	"type": "module",
 	"scripts": {
 		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync && husky",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"db:migrate": "drizzle-kit migrate",
@@ -37,6 +39,8 @@
 		"eslint-config-prettier": "^10.0.1",
 		"eslint-plugin-svelte": "^3.0.0",
 		"globals": "^16.0.0",
+		"husky": "^9.1.7",
+		"lint-staged": "^15.5.1",
 		"prettier": "^3.4.2",
 		"prettier-plugin-svelte": "^3.3.3",
 		"svelte": "^5.0.0",
