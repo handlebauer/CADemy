@@ -14,9 +14,7 @@
 		"db:studio": "drizzle-kit studio",
 		"dev": "vite dev",
 		"format": "prettier --write .",
-		"lint": "prettier --check . && eslint .",
-		"prepare": "svelte-kit sync || echo ''",
-		"preview": "vite preview"
+		"lint": "prettier --check . && eslint ."
 	},
 	"dependencies": {
 		"@oslojs/crypto": "^1.0.1",
