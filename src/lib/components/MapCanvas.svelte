@@ -1,19 +1,26 @@
 <script lang="ts">
+	// External imports
 	import { onMount, onDestroy } from 'svelte';
 	import * as THREE from 'three';
+
+	// Type & constant imports
 	import type { SubjectMapData, LessonNodeData } from '$lib/types/map';
+
+	// Utility imports
 	import { createAnimatedSprite, playerSpriteConfig } from '$lib/spriteData';
 
+	// Declare props
 	export let mapData: SubjectMapData;
 	export let onNodeInteract: (nodeName: string) => void; // Event dispatcher for interaction
 
-	let canvasElement: HTMLCanvasElement;
-	let canvasContainer: HTMLElement;
+	// Three.js setup
+	let canvasContainer: HTMLElement; // div bound in HTML as container for canvas
+	let canvasElement: HTMLCanvasElement; // <canvas> element for bitmap rendering
 
-	let scene: THREE.Scene;
-	let camera: THREE.OrthographicCamera; // Orthographic for 2D view
-	let renderer: THREE.WebGLRenderer;
-	let animationFrameId: number;
+	let scene: THREE.Scene; // "virtual" scene to be painted onto canvas
+	let camera: THREE.OrthographicCamera; // Orthographic for 2D view, display port for scene
+	let renderer: THREE.WebGLRenderer; // Connects to canvas onMount, draws in-camera scene onto canvas with webGL
+	let animationFrameId: number; // ID tied to frame in animation loop
 
 	// --- State for Player & Nodes ---
 	let playerSprite: ReturnType<typeof createAnimatedSprite> | null = null;
@@ -190,7 +197,10 @@
 	let lastInteractedNodeId: string | null = null;
 
 	// --- Player Creation / Update ---
-	function createOrUpdatePlayer(position: { x: number; y: number }, direction: string = 'idleDown') {
+	function createOrUpdatePlayer(
+		position: { x: number; y: number },
+		direction: string = 'idleDown'
+	) {
 		// Create animated sprite if it doesn't exist
 		if (!playerSprite) {
 			playerSprite = createAnimatedSprite(playerSpriteConfig, scene);
@@ -334,24 +344,29 @@
 		if (intersects.length > 0) {
 			const clickedNodeMesh = intersects[0].object as THREE.Mesh;
 			const clickedNodeId = clickedNodeMesh.userData.id;
-			
+
 			// Get current node data
 			const currentNodeData = mapData.nodes.find((n) => n.id === currentNodeId);
 			if (!currentNodeData) return;
-			
+
 			// Get target node data
 			const targetNode = mapData.nodes.find((n) => n.id === clickedNodeId);
 			if (!targetNode) return;
-			
+
 			// Determine direction for animation
 			const dx = targetNode.position.x - currentNodeData.position.x;
 			const dy = targetNode.position.y - currentNodeData.position.y;
-			
+
 			// Choose animation direction based on predominant movement direction
-			const direction = Math.abs(dx) > Math.abs(dy)
-				? (dx > 0 ? 'walkRight' : 'walkLeft')
-				: (dy > 0 ? 'walkUp' : 'walkDown');
-			
+			const direction =
+				Math.abs(dx) > Math.abs(dy)
+					? dx > 0
+						? 'walkRight'
+						: 'walkLeft'
+					: dy > 0
+						? 'walkUp'
+						: 'walkDown';
+
 			// Check if the clicked node is connected to the current node
 			if (currentNodeData.connections.includes(clickedNodeId)) {
 				// Connected node - move to it
