@@ -1,3 +1,56 @@
+/* Utility classes for animations */
+
+.animate-fade-in {
+	animation: fade-in 0.5s ease-out forwards;
+}
+
+.animate-fade-in-staggered {
+	animation: fade-in-staggered 0.6s ease-out forwards;
+	opacity: 0;
+}
+
+/* Stagger delays */
+.delay-1 {
+	animation-delay: 0.1s;
+}
+.delay-2 {
+	animation-delay: 0.2s;
+}
+.delay-3 {
+	animation-delay: 0.3s;
+}
+
+@keyframes fade-in {
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes fade-in-staggered {
+	to {
+		opacity: 1;
+	}
+}
+
+/* Define the shake animation for shield block */
+@keyframes shake-shield-block {
+	0% {
+		transform: translateX(0);
+	}
+	25% {
+		transform: translateX(calc(var(--shake-intensity, 5px) * -0.5)); /* Use CSS var */
+	}
+	50% {
+		transform: translateX(calc(var(--shake-intensity, 5px) * 0.5)); /* Use CSS var */
+	}
+	75% {
+		transform: translateX(calc(var(--shake-intensity, 5px) * -0.25)); /* Use CSS var */
+	}
+	100% {
+		transform: translateX(0);
+	}
+}
+
 /* Player Hit Animation */
 @keyframes shake-player-hit {
 	0%,

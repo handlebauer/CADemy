@@ -18,6 +18,10 @@
 
 	import './animations.css';
 
+	import StartScreen from './components/StartScreen.svelte';
+	import GameUI from './components/GameUI.svelte';
+	import ResultsScreen from './components/ResultsScreen.svelte';
+
 	// --- Config Variables (local reactive state) ---
 	let config = {
 		ENEMY_ATTACK_INTERVAL,
@@ -34,12 +38,14 @@
 	let damageDisplayTimeout: number | null = null; // Timeout for damage text display
 	let playerHitTimeout: number | null = null; // Timeout for player hit effect
 	let enemyHitTimeout: number | null = null; // Timeout for enemy hit effect
+	let shieldHitTimeout: number | null = null; // Timeout for shield hit effect
 	let pane: Pane;
 
 	// --- Local UI State ---
 	let displayedDamage: number | null = null; // Damage number to show on enemy
 	let playerHit = false; // Flag to trigger player hit visual effect
 	let enemyHit = false; // Flag to trigger enemy hit visual effect
+	let shieldHit = false; // Flag to trigger shield hit visual effect
 	let enemyDefeatedAnimating = false; // Flag for enemy defeat animation
 	let gameStarted = false; // Flag to prevent timers restarting on store re-renders
 
@@ -58,6 +64,7 @@
 		if (damageDisplayTimeout) clearTimeout(damageDisplayTimeout); // Clear damage display timeout
 		if (playerHitTimeout) clearTimeout(playerHitTimeout); // Clear player hit timeout
 		if (enemyHitTimeout) clearTimeout(enemyHitTimeout); // Clear enemy hit timeout
+		if (shieldHitTimeout) clearTimeout(shieldHitTimeout); // Clear shield hit timeout
 
 		// Reset all variables
 		enemyAttackIntervalTimer = null; // Use renamed timer
@@ -67,12 +74,40 @@
 		damageDisplayTimeout = null;
 		playerHitTimeout = null;
 		enemyHitTimeout = null; // Clear enemy hit timeout ID
+		shieldHitTimeout = null; // Clear shield hit timeout ID
 		playerHit = false;
 		enemyHit = false; // Reset enemy hit state
+		shieldHit = false; // Reset shield hit state
 		gameStarted = false; // Reset game started flag
 	}
 
-	// Keyboard handler - calls store actions
+	// Handler Functions for Child Component Events
+	function handleSelectSpellEvent(event: CustomEvent<SpellType>) {
+		arenaStore.selectSpell(event.detail);
+	}
+	function handleInputEvent(event: CustomEvent<number>) {
+		arenaStore.handleInput(event.detail);
+	}
+	function handleClearInputEvent() {
+		arenaStore.clearInput();
+	}
+	function handleBackspaceEvent() {
+		arenaStore.handleBackspace();
+	}
+	function handleCastSpellEvent() {
+		arenaStore.castSpell();
+	}
+	function handleExitGameEvent() {
+		minigameStore.closeActiveMinigame();
+	}
+	function handleNextLevelEvent() {
+		arenaStore.advanceLevelAndStart();
+	}
+	function handleTryAgainEvent() {
+		arenaStore.startGame(); // Or arenaStore.reset() depending on desired behavior
+	}
+
+	// Keyboard handler - calls store actions (Simplified)
 	function handleKeyDown(event: KeyboardEvent) {
 		// Start game on Enter press during PRE_GAME
 		if ($arenaStore.gameStatus === GameStatus.PRE_GAME) {
@@ -180,10 +215,10 @@
 	// Reactive statement to start timers when game enters SOLVING state
 	$: {
 		if ($arenaStore.gameStatus === GameStatus.SOLVING && !gameStarted) {
-			console.log('Game status is SOLVING, starting timers...');
 			startEnemyAttackTimer();
 			startGameTimer();
 			gameStarted = true; // Mark timers as started
+			enemyDefeatedAnimating = false; // Reset defeat animation flag for new level
 		}
 	}
 
@@ -199,32 +234,50 @@
 	// Helper function to encapsulate starting the enemy timer
 	function startEnemyAttackTimer() {
 		if (enemyAttackIntervalTimer) clearInterval(enemyAttackIntervalTimer); // Clear existing if any
-		console.log('Starting enemy attack timer with interval:', config.ENEMY_ATTACK_INTERVAL);
 		enemyAttackIntervalTimer = setInterval(() => {
 			// Check status *inside* the interval callback as well
 			if (($arenaStore as ArenaState).gameStatus === GameStatus.SOLVING) {
-				arenaStore.damagePlayer(config.ENEMY_DAMAGE); // Use local reactive config
-				console.log(`Enemy attacks! Player health: ${($arenaStore as ArenaState).playerHealth}`);
+				// Capture shield status *before* potential deactivation
+				const shieldWasActive = ($arenaStore as ArenaState).isShieldActive;
 
-				// Trigger player hit visual effect
-				if (playerHitTimeout) clearTimeout(playerHitTimeout);
+				// Always attempt to damage player; the store handles shield logic
+				arenaStore.damagePlayer(config.ENEMY_DAMAGE);
 
-				// Calculate shake intensity based on health (lower health = more shake)
-				const shakeIntensity = Math.max(
-					12,
-					12 + (100 - ($arenaStore as ArenaState).playerHealth) / 5
-				);
+				// Determine which visual effect to show based on shield status *before* damage was applied
+				if (shieldWasActive) {
+					// Trigger shield hit visual effect
+					if (shieldHitTimeout) clearTimeout(shieldHitTimeout);
+					shieldHit = true;
+					if (arenaContainerElement) {
+						// Maybe a less intense shake for shield block?
+						arenaContainerElement.style.setProperty('--shake-intensity', `5px`);
+					}
+					shieldHitTimeout = setTimeout(() => {
+						shieldHit = false;
+						shieldHitTimeout = null;
+					}, 300); // Slightly longer duration for shield effect?
+				} else {
+					// Trigger player hit visual effect (shield was not active)
+					if (playerHitTimeout) clearTimeout(playerHitTimeout);
 
-				// Set CSS variable for shake animation
-				if (arenaContainerElement) {
-					arenaContainerElement.style.setProperty('--shake-intensity', `${shakeIntensity}px`);
+					// Calculate shake intensity based on health (lower health = more shake)
+					// Note: Reading health *after* damagePlayer was called
+					const shakeIntensity = Math.max(
+						12,
+						12 + (100 - ($arenaStore as ArenaState).playerHealth) / 5
+					);
+
+					// Set CSS variable for shake animation
+					if (arenaContainerElement) {
+						arenaContainerElement.style.setProperty('--shake-intensity', `${shakeIntensity}px`);
+					}
+
+					playerHit = true;
+					playerHitTimeout = setTimeout(() => {
+						playerHit = false;
+						playerHitTimeout = null;
+					}, 200); // Duration of the flash effect
 				}
-
-				playerHit = true;
-				playerHitTimeout = setTimeout(() => {
-					playerHit = false;
-					playerHitTimeout = null;
-				}, 200); // Duration of the flash effect
 			}
 		}, config.ENEMY_ATTACK_INTERVAL); // Use local reactive config
 	}
@@ -232,7 +285,6 @@
 	// Helper function to start the game timer
 	function startGameTimer() {
 		if (gameTimerInterval) clearInterval(gameTimerInterval); // Clear existing if any
-		console.log('Starting game timer...');
 		gameTimerInterval = setInterval(() => {
 			if (
 				($arenaStore as ArenaState).gameTime > 0 &&
@@ -291,7 +343,6 @@
 	});
 
 	onDestroy(() => {
-		console.log('Equation Arena component destroyed');
 		stopGameTimers(); // Clear intervals and timeouts
 		window.removeEventListener('keydown', handleKeyDown);
 		// Dispose Tweakpane only if it was created (in dev mode)
@@ -314,201 +365,58 @@
 </script>
 
 <!-- Use a main container to switch between Game UI and Results Screen -->
-<div class="arena-wrapper" class:player-hit={playerHit} bind:this={arenaContainerElement}>
+<div
+	class="arena-wrapper"
+	class:player-hit={playerHit}
+	class:shield-hit={shieldHit}
+	bind:this={arenaContainerElement}
+>
 	<!-- Explicit container for Tweakpane (only render in dev) -->
 	{#if import.meta.env.DEV}
 		<div id="tweakpane-container" bind:this={tweakpaneContainerElement}></div>
 	{/if}
 
 	{#if $arenaStore.gameStatus === GameStatus.PRE_GAME}
-		<!-- Start Screen -->
-		<div class="start-screen animate-fade-in">
-			<h1 class="start-title animate-fade-in-staggered delay-1">🧙‍♂️ Equation Arena 🐉</h1>
-			<p class="start-instructions animate-fade-in-staggered delay-2">
-				Solve equations to defeat the enemy!
-			</p>
-			<button class="start-button animate-fade-in-staggered delay-3" on:click={handleStartGame}>
-				Start Game
-			</button>
-		</div>
+		<!-- Start Screen Component -->
+		<StartScreen on:startGame={handleStartGame} />
 	{:else if $arenaStore.gameStatus !== GameStatus.GAME_OVER}
-		<!-- Game UI (Existing structure) -->
-		<div class="equation-arena-container" class:shake={playerHit}>
-			<!-- Top Bar -->
-			<div class="top-bar">
-				<div class="health-player">
-					<span>❤️</span>
-					<!-- Replace progress with divs -->
-					<div class="player-health-bar-container" class:shield-active={$arenaStore.isShieldActive}>
-						<div class="player-health-bar-fill" style="width: {$arenaStore.playerHealth}%;"></div>
-					</div>
-					<span class="player-health-value">{$arenaStore.playerHealth}/100</span>
-				</div>
-				<div
-					class="timer"
-					class:low-time={($arenaStore as ArenaState).gameTime > 0 &&
-						($arenaStore as ArenaState).gameTime < 10}
-				>
-					⏱️ {formattedTime.replace('Time: ', '')}
-				</div>
-			</div>
-
-			<!-- Enemy Area -->
-			<div class="enemy-area">
-				<!-- Direct children for enemy display -->
-				<div
-					class="enemy-icon"
-					class:hit-reaction={enemyHit}
-					class:defeated={enemyDefeatedAnimating}
-				>
-					🐉
-				</div>
-				<div class="enemy-label">Enemy</div>
-				<progress class="enemy-health-bar" max="100" value={($arenaStore as ArenaState).enemyHealth}
-				></progress>
-				<div class="enemy-health-text">{$arenaStore.enemyHealth}/100</div>
-				<!-- Damage Display Text -->
-				{#if displayedDamage !== null}
-					<span class="damage-dealt-text animate-damage">-{displayedDamage}</span>
-				{/if}
-			</div>
-
-			<!-- Spell Selection -->
-			<div class="spell-selection">
-				<!-- Spell buttons -->
-				<button
-					on:click={() => arenaStore.selectSpell('FIRE')}
-					class:selected={($arenaStore as ArenaState).selectedSpell === 'FIRE'}
-				>
-					🔥 FIRE
-				</button>
-				<!-- No :active needed for spell selection, only visual state change -->
-				<button
-					on:click={() => arenaStore.selectSpell('ICE')}
-					class:selected={($arenaStore as ArenaState).selectedSpell === 'ICE'}
-				>
-					🧊 ICE
-				</button>
-			</div>
-
-			<!-- Equation Display -->
-			<div
-				class="equation-display"
-				class:correct={$arenaStore.lastAnswerCorrect === true &&
-					$arenaStore.gameStatus === GameStatus.RESULT}
-				class:incorrect={$arenaStore.lastAnswerCorrect === false &&
-					$arenaStore.gameStatus === GameStatus.RESULT}
-			>
-				{#if $arenaStore.gameStatus === GameStatus.SOLVING}
-					<!-- Equation text -->
-					<span class="equation-text"
-						>{$arenaStore.currentEquation.replace('?', $arenaStore.playerInput + '_')}</span
-					>
-				{:else if $arenaStore.gameStatus === GameStatus.WAITING}
-					<span class="info-text">Waiting for spell selection...</span>
-				{:else if $arenaStore.gameStatus === GameStatus.RESULT}
-					<!-- Result equation -->
-					<div class="result-equation">
-						<span class="equation-content"
-							>{$arenaStore.lastFullEquation.replace('?', $arenaStore.lastPlayerInput)}</span
-						>
-					</div>
-				{/if}
-			</div>
-
-			<!-- Number Pad -->
-			<div class="number-pad">
-				<!-- Number buttons -->
-				{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as num}
-					<button
-						on:click={() => arenaStore.handleInput(num)}
-						disabled={$arenaStore.gameStatus !== GameStatus.SOLVING}
-					>
-						{num}
-					</button>
-				{/each}
-				<button
-					on:click={arenaStore.clearInput}
-					disabled={$arenaStore.gameStatus !== GameStatus.SOLVING}
-					class="button-clear"
-				>
-					C
-				</button>
-				<button
-					on:click={() => arenaStore.handleInput(0)}
-					disabled={$arenaStore.gameStatus !== GameStatus.SOLVING}
-					class="button-zero"
-				>
-					0
-				</button>
-				<button
-					on:click={arenaStore.handleBackspace}
-					disabled={$arenaStore.gameStatus !== GameStatus.SOLVING ||
-						$arenaStore.playerInput.length === 0}
-					class="button-backspace"
-				>
-					DEL
-				</button>
-			</div>
-
-			<!-- Cast Button -->
-			<div class="cast-area">
-				<!-- Cast button -->
-				<button
-					on:click={arenaStore.castSpell}
-					disabled={$arenaStore.gameStatus !== GameStatus.SOLVING ||
-						$arenaStore.playerInput === '' ||
-						!$arenaStore.selectedSpell}
-					class:glow={$arenaStore.gameStatus === GameStatus.SOLVING &&
-						$arenaStore.playerInput !== '' &&
-						!!$arenaStore.selectedSpell}
-				>
-					CAST SPELL
-				</button>
-			</div>
-		</div>
+		<!-- Game UI Component -->
+		<GameUI
+			gameStatus={$arenaStore.gameStatus}
+			playerHealth={$arenaStore.playerHealth}
+			enemyHealth={$arenaStore.enemyHealth}
+			isShieldActive={$arenaStore.isShieldActive}
+			{formattedTime}
+			gameTime={$arenaStore.gameTime}
+			{enemyHit}
+			{enemyDefeatedAnimating}
+			{displayedDamage}
+			selectedSpell={$arenaStore.selectedSpell}
+			lastAnswerCorrect={$arenaStore.lastAnswerCorrect}
+			currentEquation={$arenaStore.currentEquation}
+			playerInput={$arenaStore.playerInput}
+			lastFullEquation={$arenaStore.lastFullEquation}
+			lastPlayerInput={$arenaStore.lastPlayerInput}
+			on:selectSpell={handleSelectSpellEvent}
+			on:handleInput={handleInputEvent}
+			on:clearInput={handleClearInputEvent}
+			on:handleBackspace={handleBackspaceEvent}
+			on:castSpell={handleCastSpellEvent}
+		/>
 	{:else}
-		<!-- Results Screen -->
-		<div class="results-screen">
-			<div class="results-title {$arenaStore.playerHealth > 0 ? 'victory' : 'defeat'}">
-				{$arenaStore.playerHealth > 0 ? '🏆 VICTORY!' : '☠️ DEFEAT!'}
-				{#if $arenaStore.playerHealth > 0}
-					<!-- Add multiple star elements for animation -->
-					<span class="star">★</span>
-					<span class="star">★</span>
-					<span class="star">★</span>
-					<span class="star">★</span>
-					<span class="star">★</span>
-					<span class="star">★</span>
-				{/if}
-			</div>
-			<div class="results-stats">
-				<p>Equations Solved: {$arenaStore.equationsSolvedCorrectly}</p>
-				<p>Time Taken: {formattedTimeTaken}</p>
-				<!-- Add other stats here later -->
-			</div>
-			<div class="results-feedback-prompt">
-				How was your experience?
-				<div class="feedback-buttons">
-					<button>🙁</button>
-					<button>😐</button>
-					<button>🙂</button>
-				</div>
-			</div>
-			<div class="results-actions">
-				<button class="exit-button" on:click={() => minigameStore.closeActiveMinigame()}
-					>EXIT</button
-				>
-				<button class="continue-button" on:click={() => console.log('Continue')}>
-					Next Level →
-				</button>
-			</div>
-		</div>
+		<!-- Results Screen Component -->
+		<ResultsScreen
+			playerHealth={$arenaStore.playerHealth}
+			equationsSolvedCorrectly={$arenaStore.equationsSolvedCorrectly}
+			{formattedTimeTaken}
+			on:exitGame={handleExitGameEvent}
+			on:nextLevel={handleNextLevelEvent}
+			on:tryAgain={handleTryAgainEvent}
+		/>
 	{/if}
 </div>
 
 <style>
-	/* Add styles for the wrapper and results screen */
 	.arena-wrapper {
 		width: 100%;
 		height: 100%;
@@ -520,9 +428,12 @@
 		box-shadow: inset 0 0 0 0 rgba(231, 76, 60, 0);
 		transition: box-shadow 0.2s ease-out;
 		position: relative; /* Needed for absolute positioning of tweakpane container if used */
+		/* Apply shake animation via CSS variable set in script */
+		animation-duration: 0.2s; /* Default duration */
+		animation-timing-function: ease-in-out;
+		/* Apply shake animation based on playerHit/shieldHit */
 	}
 
-	/* Style for the Tweakpane container */
 	#tweakpane-container {
 		position: fixed; /* Keep it fixed in the viewport */
 		top: 10px;
@@ -530,644 +441,14 @@
 		z-index: 1000; /* Ensure it stays on top */
 	}
 
-	/* Style for the player hit flash effect */
 	.arena-wrapper.player-hit {
 		box-shadow: inset 0 0 40px 30px rgba(231, 76, 60, 0.7); /* Stronger red glow inset */
+		animation-name: shake-player-hit;
 	}
 
-	.equation-arena-container {
-		/* Styles from before, but maybe constrain max-width/height */
-		max-width: 500px; /* Example max width */
-		max-height: 800px; /* Example max height */
-		width: 90%;
-		height: 95%;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: space-between;
-		padding: 1rem;
-		box-sizing: border-box;
-		font-family: sans-serif;
-		background-color: #f0f4f8;
-		color: #333;
-		border-radius: 10px;
-		box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-	}
-
-	/* Add shake animation */
-	.equation-arena-container.shake {
-		animation: shake-player-hit 0.2s ease-in-out;
-	}
-
-	.results-screen {
-		background-color: #fff;
-		padding: 2rem 2.5rem;
-		border-radius: 12px;
-		box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
-		text-align: center;
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem; /* Space between sections */
-		font-family: sans-serif;
-		width: 90%;
-		max-width: 400px;
-	}
-
-	.results-title {
-		font-size: 2rem;
-		font-weight: bold;
-		padding: 0.75rem 1.5rem;
-		border-radius: 8px;
-		color: #fff;
-		margin-bottom: 0.5rem;
-		position: relative; /* Needed for absolute positioning of stars */
-		overflow: hidden; /* Hide stars until they animate */
-	}
-
-	.results-title.victory {
-		background-color: #ff9800; /* Orange for victory */
-		animation: victory-pop 0.5s ease-out forwards; /* Add pop animation */
-	}
-
-	.results-title.defeat {
-		background-color: #6c757d; /* Grey for defeat */
-	}
-
-	/* Star Styles */
-	.star {
-		position: absolute;
-		top: 0; /* Start at the top */
-		font-size: 10px; /* Adjust star size */
-		color: #ffd700; /* Gold color */
-		pointer-events: none; /* Don't interfere with clicks */
-		opacity: 0; /* Start hidden */
-		animation: fall-and-fade 1.5s ease-out infinite;
-		transition:
-			transform 0.1s ease-out,
-			filter 0.1s ease-out; /* Transition for hit reaction */
-	}
-
-	/* Stagger star positions and delays */
-	.star:nth-child(1) {
-		left: 15%;
-		animation-delay: 0s;
-	}
-	.star:nth-child(2) {
-		left: 30%;
-		animation-delay: 0.3s;
-	}
-	.star:nth-child(3) {
-		left: 45%;
-		animation-delay: 0.1s;
-	}
-	.star:nth-child(4) {
-		left: 60%;
-		animation-delay: 0.5s;
-	}
-	.star:nth-child(5) {
-		left: 75%;
-		animation-delay: 0.2s;
-	}
-	.star:nth-child(6) {
-		left: 90%;
-		animation-delay: 0.4s;
-	}
-
-	.results-stats p {
-		margin: 0.5rem 0;
-		font-size: 1.1rem;
-		color: #333;
-	}
-
-	.results-feedback-prompt {
-		margin-top: 1rem;
-		font-size: 1rem;
-		color: #555;
-	}
-
-	.feedback-buttons {
-		display: flex;
-		justify-content: center;
-		gap: 1rem;
-		margin-top: 0.75rem;
-	}
-
-	.feedback-buttons button {
-		font-size: 1.5rem;
-		padding: 0.5rem;
-		border: 1px solid #ccc;
-		background: #fff;
-		border-radius: 50%;
-		cursor: pointer;
-		width: 50px;
-		height: 50px;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		transition: background-color 0.2s;
-	}
-
-	.feedback-buttons button:hover {
-		background-color: #eee;
-	}
-
-	.results-actions {
-		display: flex;
-		justify-content: center;
-		gap: 1rem;
-		margin-top: 1.5rem;
-	}
-
-	.results-actions button {
-		padding: 0.8rem 1.5rem;
-		font-size: 1rem;
-		font-weight: bold;
-		border-radius: 6px;
-		border: 2px solid;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.continue-button {
-		background-color: #ff9800;
-		border-color: #f57c00;
-		color: #fff;
-	}
-	.continue-button:hover {
-		background-color: #f57c00;
-		border-color: #e65100;
-	}
-
-	.exit-button {
-		background-color: #fff;
-		border-color: #ccc;
-		color: #555;
-	}
-	.exit-button:hover {
-		background-color: #eee;
-		border-color: #bbb;
-	}
-
-	/* --- Existing Styles below (make sure they don't conflict) --- */
-	.top-bar {
-		display: flex;
-		justify-content: space-between; /* Space out items */
-		align-items: center; /* Vertically align items */
-		width: 100%;
-		padding: 0.5rem 1rem; /* Add some padding */
-		box-sizing: border-box;
-	}
-
-	.health-player {
-		color: #e74c3c;
-		font-size: 1.5rem; /* Larger font */
-		font-weight: bold;
-		background-color: rgba(231, 76, 60, 0.1); /* Light red background */
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		display: flex; /* Use flexbox to arrange items */
-		align-items: center; /* Center items vertically */
-		gap: 0.5rem; /* Add space between icon, bar, text */
-		min-width: 180px; /* Adjust width */
-	}
-
-	/* New div-based health bar styles */
-	.player-health-bar-container {
-		width: 80px; /* Match previous width */
-		height: 10px; /* Match previous height */
-		border: 2px solid #e74c3c; /* Always have a 2px border, but transparent */
-		border-radius: 3px; /* Apply radius to container */
-		overflow: hidden; /* Crucial for clipping the inner div */
-		background-color: #f8d7da; /* Track background */
-		position: relative; /* Needed if adding inner elements later */
-		transition: border-color 0.3s ease; /* Smooth color transition */
-	}
-
-	.player-health-bar-fill {
-		height: 100%;
-		background-color: #e74c3c; /* Fill color */
-		border-radius: 0; /* Fill div does NOT need radius */
-		transition: width 0.3s ease-in-out; /* Animate width changes */
-	}
-
-	.player-health-value {
-		font-size: 0.9em; /* Slightly smaller than the main text */
-		font-weight: bold; /* Keep it bold */
-		color: #e74c3c;
-		line-height: 1; /* Adjust line height */
-	}
-
-	.timer {
-		color: #3498db;
-		font-size: 1.5rem; /* Larger font */
-		font-weight: bold;
-		background-color: rgba(52, 152, 219, 0.1); /* Light blue background */
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		margin: 0; /* Remove margin */
-		min-width: 100px; /* Ensure minimum width */
-		text-align: center;
-	}
-
-	.enemy-area {
-		flex-grow: 1;
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		align-items: center;
-		width: 100%;
-		gap: 0.25rem; /* Add small gap between elements */
-		position: relative; /* Make this the reference for absolute positioning */
-	}
-
-	.enemy-icon {
-		font-size: 3rem;
-	}
-
-	.enemy-label {
-		font-weight: bold;
-		font-size: 1.1rem;
-	}
-
-	.enemy-health-bar {
-		width: 100px; /* Fixed width for health bar */
-		height: 12px;
-		appearance: none; /* Override default appearance */
-		border: 1px solid #bdc3c7;
-		border-radius: 6px;
-		overflow: hidden; /* Ensure inner bar respects border-radius */
-	}
-
-	/* Styling the progress bar fill */
-	.enemy-health-bar::-webkit-progress-bar {
-		/* Background */
-		background-color: #eee;
-		border-radius: 6px;
-	}
-	.enemy-health-bar::-webkit-progress-value {
-		/* Fill */
-		background-color: #e74c3c; /* Red color for health */
-		border-radius: 6px;
-		transition: width 0.3s ease-in-out;
-	}
-	.enemy-health-bar::-moz-progress-bar {
-		/* Firefox Fill */
-		background-color: #e74c3c;
-		border-radius: 6px;
-		transition: width 0.3s ease-in-out;
-	}
-
-	.enemy-health-text {
-		font-size: 0.9rem;
-		color: #555;
-	}
-
-	.spell-selection {
-		display: flex;
-		gap: 1rem;
-		margin-bottom: 1rem;
-	}
-	.spell-selection button {
-		padding: 0.8rem 1.5rem;
-		font-size: 1rem;
-		border: 2px solid #ccc;
-		border-radius: 6px;
-		cursor: pointer;
-		background-color: #fff;
-		transition: all 0.2s ease;
-	}
-	.spell-selection button:hover:not(:disabled) {
-		background-color: #eef;
-	}
-	.spell-selection button.selected {
-		border-color: #3498db;
-		background-color: #d6eaf8;
-	}
-	.spell-selection button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.equation-display {
-		background-color: #fff9e6;
-		border: 1px solid #f1c40f;
-		color: #333;
-		padding: 1rem 1.5rem;
-		width: 300px;
-		min-height: auto;
-		border-radius: 8px;
-		display: flex;
-		flex-direction: row;
-		justify-content: center;
-		align-items: center;
-		transition: background-color 0.1s ease-in-out;
-		margin-bottom: 1rem; /* Add spacing below the equation */
-	}
-
-	.equation-display.correct {
-		background-color: #e6f4ea;
-		border-color: #b7e4c7;
-		animation: pulse-correct 0.4s ease-in-out;
-	}
-
-	.equation-display.incorrect {
-		background-color: #f8d7da;
-		border-color: #f5c6cb;
-		animation: shake-incorrect 0.4s ease-in-out;
-	}
-
-	.equation-text,
-	.result-equation,
-	.info-text {
-		font-size: 1.8rem;
-		font-weight: bold;
-		line-height: 1.2;
-	}
-
-	.result-equation {
-		/* Styles specific to the solved equation display */
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		position: relative;
-	}
-
-	.number-pad {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 0.5rem;
-		margin-bottom: 1rem;
-		width: 70%; /* Adjust width slightly */
-		max-width: 250px;
-	}
-	.number-pad button {
-		padding: 1rem;
-		font-size: 1.2rem;
-		border: 1px solid #ccc;
-		border-radius: 4px;
-		cursor: pointer;
-		background-color: #fff;
-		transition:
-			background-color 0.2s,
-			transform 0.15s ease-out; /* Add transform transition */
-	}
-	.number-pad button:hover:not(:disabled) {
-		background-color: #eee;
-		transform: scale(1.1); /* Scale up on hover */
-	}
-	.number-pad button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* Position Clear (C), Zero (0), and Backspace buttons */
-	.button-clear {
-		grid-column: 1 / 2; /* First column */
-	}
-	.button-zero {
-		grid-column: 2 / 3; /* Second column */
-	}
-	.button-backspace {
-		grid-column: 3 / 4; /* Third column */
-	}
-
-	.cast-area {
-		width: 100%;
-		display: flex;
-		justify-content: center;
-	}
-	.cast-area button {
-		padding: 1rem 2.5rem;
-		font-size: 1.2rem;
-		font-weight: bold;
-		border: none;
-		border-radius: 6px;
-		cursor: pointer;
-		background-color: #bdc3c7; /* Default grey */
-		color: #fff;
-		transition: all 0.2s ease;
-	}
-	.cast-area button:not(:disabled) {
-		background-color: #2ecc71; /* Green when active */
-	}
-	.cast-area button:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-	.cast-area button.glow:not(:disabled) {
-		animation: pulse-glow 1.5s infinite ease-in-out; /* Pulsing glow animation */
-	}
-
-	/* Added styles for damage text */
-	.damage-dealt-text {
-		position: absolute; /* Position relative to the enemy area */
-		top: 20%; /* Position near the top of the enemy area */
-		left: 50%; /* Center horizontally within the enemy area */
-		transform: translate(-50%, -50%);
-		font-size: 1.5rem; /* Make it noticeable */
-		font-weight: bold;
-		color: #e74c3c; /* Red for damage */
-		text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); /* Add some contrast */
-		pointer-events: none; /* Prevent interaction */
-		opacity: 0; /* Start invisible for animation */
-	}
-
-	.animate-damage {
-		animation: show-damage 1s ease-out forwards;
-	}
-
-	/* Add styles for low-time timer */
-	.timer.low-time {
-		color: #e74c3c; /* Red color */
-		animation: low-time-pulse 1s infinite;
-	}
-
-	@keyframes low-time-pulse {
-		0%,
-		100% {
-			transform: scale(1);
-			opacity: 1;
-		}
-		50% {
-			transform: scale(1.05);
-			opacity: 0.8;
-		}
-	}
-
-	/* Enemy Hit Reaction Style */
-	.enemy-icon.hit-reaction {
-		animation: enemy-hit-react 0.2s ease-out;
-	}
-
-	@keyframes enemy-hit-react {
-		0% {
-			transform: scale(1);
-			filter: brightness(1);
-		}
-		50% {
-			transform: scale(1.1);
-			filter: brightness(1.8);
-		}
-		100% {
-			transform: scale(1);
-			filter: brightness(1);
-		}
-	}
-
-	.spell-selection button {
-		/* ... existing styles ... */
-		transition: all 0.2s ease;
-	}
-	.spell-selection button:active {
-		transform: scale(0.95); /* Slightly depress */
-	}
-
-	.number-pad button {
-		/* ... existing styles ... */
-		transition:
-			background-color 0.2s,
-			transform 0.15s ease-out;
-	}
-	.number-pad button:hover:not(:disabled) {
-		background-color: #eee;
-		transform: scale(1.1);
-	}
-	.number-pad button:active:not(:disabled) {
-		transform: scale(1); /* Scale down slightly more than hover */
-		background-color: #ddd; /* Darken slightly */
-	}
-
-	.cast-area button {
-		/* ... existing styles ... */
-		transition: all 0.2s ease;
-	}
-	.cast-area button:active:not(:disabled) {
-		transform: scale(0.95); /* Depress */
-	}
-	.cast-area button.glow:not(:disabled) {
-		animation: pulse-glow 1.5s infinite ease-in-out; /* Pulsing glow animation */
-	}
-
-	@keyframes pulse-glow {
-		0% {
-			box-shadow: 0 0 8px rgba(46, 204, 113, 0.5);
-		}
-		50% {
-			box-shadow: 0 0 20px rgba(46, 204, 113, 0.9);
-		}
-		100% {
-			box-shadow: 0 0 8px rgba(46, 204, 113, 0.5);
-		}
-	}
-
-	.results-actions button {
-		/* ... existing styles ... */
-		transition: all 0.2s;
-	}
-	.results-actions button:active {
-		transform: scale(0.95); /* Depress */
-	}
-
-	.enemy-icon.defeated {
-		animation: enemy-defeat 0.6s ease-in forwards;
-	}
-
-	/* START SCREEN STYLES - Minimal & Captivating */
-	.start-screen {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: 3rem; /* Generous padding */
-		background-color: #f0f4f8; /* Match game background */
-		border-radius: 12px;
-		box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); /* Subtle shadow */
-		text-align: center;
-		font-family: sans-serif; /* Use consistent font */
-		color: #333; /* Default dark text */
-		width: 90%;
-		max-width: 450px;
-		overflow: hidden; /* Hide elements before slide-up */
-	}
-
-	.start-title {
-		font-size: 2.4rem; /* Prominent but not huge */
-		font-weight: 600; /* Semi-bold */
-		color: #2c3e50; /* Dark slate blue */
-		margin-bottom: 1rem;
-		line-height: 1.2;
-	}
-
-	.start-instructions {
-		font-size: 1.1rem;
-		color: #555; /* Medium grey */
-		margin-bottom: 2.5rem;
-		max-width: 80%;
-		line-height: 1.6;
-	}
-
-	.start-button {
-		padding: 0.8rem 2rem; /* Standard padding */
-		font-size: 1.1rem;
-		font-weight: 500; /* Medium weight */
-		border: none;
-		border-radius: 8px; /* Moderate rounding */
-		cursor: pointer;
-		background-color: #3498db; /* Nice blue accent */
-		color: #fff;
-		transition: all 0.2s ease-in-out;
-		box-shadow: 0 2px 5px rgba(52, 152, 219, 0.3);
-	}
-
-	.start-button:hover {
-		background-color: #2980b9; /* Darker blue */
-		box-shadow: 0 4px 8px rgba(52, 152, 219, 0.35);
-		transform: translateY(-1px);
-	}
-
-	.start-button:active {
-		transform: translateY(0) scale(0.98); /* Slight press down */
-		box-shadow: 0 1px 3px rgba(52, 152, 219, 0.2);
-		background-color: #2471a3; /* Even darker blue */
-	}
-
-	/* Animations */
-	.animate-fade-in {
-		animation: fade-in 0.5s ease-out forwards;
-	}
-
-	.animate-fade-in-staggered {
-		animation: fade-in-staggered 0.6s ease-out forwards;
-		opacity: 0;
-	}
-
-	/* Stagger delays */
-	.delay-1 {
-		animation-delay: 0.1s;
-	}
-	.delay-2 {
-		animation-delay: 0.2s;
-	}
-	.delay-3 {
-		animation-delay: 0.3s;
-	}
-
-	@keyframes fade-in {
-		to {
-			opacity: 1;
-		}
-	}
-
-	@keyframes fade-in-staggered {
-		to {
-			opacity: 1;
-		}
-	}
-
-	/* Player Health Bar Shield Active State */
-	.player-health-bar-container.shield-active {
-		border-color: #3498db; /* Blue border */
-		box-shadow: 0 0 6px rgba(52, 152, 219, 0.6); /* Subtle blue glow */
-		animation: pulse-shield-bar 1.5s infinite ease-in-out;
+	.arena-wrapper.shield-hit {
+		box-shadow: inset 0 0 40px 30px rgba(52, 152, 219, 0.6); /* Blue glow inset for shield */
+		animation-name: shake-shield-block;
+		animation-duration: 0.3s;
 	}
 </style>
