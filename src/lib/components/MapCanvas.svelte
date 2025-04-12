@@ -197,7 +197,10 @@
 	let lastInteractedNodeId: string | null = null;
 
 	// --- Player Creation / Update ---
-	function createOrUpdatePlayer(position: { x: number; y: number }, direction: string = 'idleDown') {
+	function createOrUpdatePlayer(
+		position: { x: number; y: number },
+		direction: string = 'idleDown'
+	) {
 		// Create animated sprite if it doesn't exist
 		if (!playerSprite) {
 			playerSprite = createAnimatedSprite(playerSpriteConfig, scene);
@@ -341,24 +344,29 @@
 		if (intersects.length > 0) {
 			const clickedNodeMesh = intersects[0].object as THREE.Mesh;
 			const clickedNodeId = clickedNodeMesh.userData.id;
-			
+
 			// Get current node data
 			const currentNodeData = mapData.nodes.find((n) => n.id === currentNodeId);
 			if (!currentNodeData) return;
-			
+
 			// Get target node data
 			const targetNode = mapData.nodes.find((n) => n.id === clickedNodeId);
 			if (!targetNode) return;
-			
+
 			// Determine direction for animation
 			const dx = targetNode.position.x - currentNodeData.position.x;
 			const dy = targetNode.position.y - currentNodeData.position.y;
-			
+
 			// Choose animation direction based on predominant movement direction
-			const direction = Math.abs(dx) > Math.abs(dy)
-				? (dx > 0 ? 'walkRight' : 'walkLeft')
-				: (dy > 0 ? 'walkUp' : 'walkDown');
-			
+			const direction =
+				Math.abs(dx) > Math.abs(dy)
+					? dx > 0
+						? 'walkRight'
+						: 'walkLeft'
+					: dy > 0
+						? 'walkUp'
+						: 'walkDown';
+
 			// Check if the clicked node is connected to the current node
 			if (currentNodeData.connections.includes(clickedNodeId)) {
 				// Connected node - move to it

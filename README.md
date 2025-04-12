@@ -2,7 +2,7 @@
 
 **0. Install and Run**
 
-For now, this is a simple frontend MVP using three.js. Just download source, do a `bun install`, 
+For now, this is a simple frontend MVP using three.js. Just download source, do a `bun install`,
 then `bun run dev` and fool around with it in your browser.
 
 **1. Project Goal & Background:**
