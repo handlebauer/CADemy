@@ -1,41 +1,87 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import { GameStatus, type SpellType } from '../types'; // Assuming types are colocated or adjust path
+	import type { GameMode, BonusConfig, SpellType } from '../types';
+	import { GameStatus } from '../types';
 
-	const dispatch = createEventDispatcher();
+	// Import the numpad components
+	import SolverNumpad from './SolverNumpad.svelte';
+	import CrafterNumpad from './CrafterNumpad.svelte';
+
+	// Update dispatcher types for new crafter events
+	const dispatch = createEventDispatcher<{
+		selectSpell: SpellType;
+		// Solver/Answer input events
+		handleInput: number;
+		clearInput: void;
+		handleBackspace: void;
+		// Crafter equation building events
+		inputChar: string;
+		clearCrafted: void;
+		backspaceCrafted: void;
+		submitEquation: void;
+		// General
+		castSpell: void;
+	}>();
 
 	export let gameStatus: GameStatus;
 	export let playerHealth: number;
 	export let enemyHealth: number;
+	export let enemyName: string = 'Enemy';
 	export let isShieldActive: boolean;
-	export let formattedTime: string; // Pass pre-formatted time
+	export let formattedTime: string;
 	export let gameTime: number;
 	export let enemyHit: boolean;
 	export let enemyDefeatedAnimating: boolean;
 	export let displayedDamage: number | null;
 	export let selectedSpell: SpellType | null;
 	export let lastAnswerCorrect: boolean | null;
-	export let currentEquation: string;
-	export let playerInput: string;
+	export let currentEquation: string; // Used by Solver mode
+	export let playerInput: string; // Current *answer* input
 	export let lastFullEquation: string;
 	export let lastPlayerInput: string;
+	export let gameMode: GameMode | null = null;
 
+	// Crafter mode specific props
+	export let craftedEquationString: string = '';
+	export let isCraftingPhase: boolean = false;
+
+	// Add props for bonuses and errors
+	export let activeBonuses: BonusConfig[] = [];
+	export let evaluationError: string | null = null;
+
+	// --- Event Handlers ---
+
+	// Spell Selection
 	function handleSelectSpell(spell: SpellType) {
 		dispatch('selectSpell', spell);
 	}
 
-	function handleInput(num: number) {
-		dispatch('handleInput', num);
+	// Solver/Answer Input
+	function handleAnswerInput(event: CustomEvent<number>) {
+		dispatch('handleInput', event.detail);
 	}
-
-	function handleClearInput() {
+	function handleClearAnswerInput() {
 		dispatch('clearInput');
 	}
-
-	function handleBackspace() {
+	function handleAnswerBackspace() {
 		dispatch('handleBackspace');
 	}
 
+	// Crafter Equation Input
+	function handleCrafterInputChar(event: CustomEvent<string>) {
+		dispatch('inputChar', event.detail);
+	}
+	function handleClearCraftedEquation() {
+		dispatch('clearCrafted');
+	}
+	function handleCrafterBackspace() {
+		dispatch('backspaceCrafted');
+	}
+	function handleSubmitEquation() {
+		dispatch('submitEquation');
+	}
+
+	// General Action
 	function handleCastSpell() {
 		dispatch('castSpell');
 	}
@@ -65,13 +111,22 @@
 		<div class="enemy-icon" class:hit-reaction={enemyHit} class:defeated={enemyDefeatedAnimating}>
 			🐉
 		</div>
-		<div class="enemy-label">Enemy</div>
+		<div class="enemy-label">{enemyName}</div>
 		<progress class="enemy-health-bar" max="100" value={enemyHealth}></progress>
 		<div class="enemy-health-text">{enemyHealth}/100</div>
-		<!-- Damage Display Text -->
-		{#if displayedDamage !== null}
-			<span class="damage-dealt-text animate-damage">-{displayedDamage}</span>
-		{/if}
+		<!-- Damage & Bonus Display Area -->
+		<div class="feedback-overlay">
+			{#if displayedDamage !== null && lastAnswerCorrect}
+				<span class="damage-dealt-text animate-damage">-{displayedDamage}</span>
+			{/if}
+			{#if gameStatus === GameStatus.RESULT && lastAnswerCorrect && activeBonuses.length > 0}
+				<div class="bonus-display animate-bonus">
+					{#each activeBonuses as bonus (bonus.id)}
+						<span>{bonus.name} (+{Math.round((bonus.powerMultiplier - 1) * 100)}%)</span>
+					{/each}
+				</div>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Spell Selection -->
@@ -91,61 +146,72 @@
 		class="equation-display"
 		class:correct={lastAnswerCorrect === true && gameStatus === GameStatus.RESULT}
 		class:incorrect={lastAnswerCorrect === false && gameStatus === GameStatus.RESULT}
+		class:eval-error={!!evaluationError && gameStatus === GameStatus.RESULT}
 	>
-		{#if gameStatus === GameStatus.SOLVING}
-			<!-- Equation text -->
-			<span class="equation-text">{currentEquation.replace('?', playerInput + '_')}</span>
-		{:else if gameStatus === GameStatus.WAITING}
-			<span class="info-text">Waiting for spell selection...</span>
-		{:else if gameStatus === GameStatus.RESULT}
-			<!-- Result equation -->
-			<div class="result-equation">
-				<span class="equation-content">{lastFullEquation.replace('?', lastPlayerInput)}</span>
-			</div>
+		{#if gameMode === 'solver'}
+			{#if gameStatus === GameStatus.SOLVING}
+				<!-- Equation text -->
+				<span class="equation-text">{currentEquation.replace('?', playerInput + '_')}</span>
+			{:else if gameStatus === GameStatus.RESULT}
+				<!-- Result equation -->
+				<div class="result-equation">
+					<span class="equation-content">{lastFullEquation.replace('?', lastPlayerInput)}</span>
+				</div>
+			{:else}
+				<span class="info-text">Loading...</span>
+			{/if}
+		{:else if gameMode === 'crafter'}
+			{#if gameStatus === GameStatus.SOLVING}
+				{#if isCraftingPhase}
+					<!-- Show equation being crafted -->
+					<span class="equation-text">{craftedEquationString || '_'}</span>
+				{:else}
+					<!-- Show crafted equation for solving -->
+					<span class="equation-text">{craftedEquationString.trim()} = {playerInput + '_'}</span>
+				{/if}
+			{:else if gameStatus === GameStatus.RESULT}
+				<div class="result-equation">
+					{#if evaluationError}
+						<!-- Show evaluation error -->
+						<span class="error-text">{evaluationError}</span>
+					{:else}
+						<!-- Show solved equation -->
+						<span class="equation-content">{lastFullEquation.replace('?', lastPlayerInput)}</span>
+					{/if}
+				</div>
+			{:else}
+				<span class="info-text">Loading...</span>
+			{/if}
+		{:else}
+			<!-- Fallback if mode is null -->
+			<span class="info-text">Select Mode...</span>
 		{/if}
 	</div>
 
-	<!-- Number Pad -->
-	<div class="number-pad">
-		<!-- Number buttons -->
-		{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as num}
-			<button on:click={() => handleInput(num)} disabled={gameStatus !== GameStatus.SOLVING}>
-				{num}
-			</button>
-		{/each}
-		<button
-			on:click={handleClearInput}
-			disabled={gameStatus !== GameStatus.SOLVING}
-			class="button-clear"
-		>
-			C
-		</button>
-		<button
-			on:click={() => handleInput(0)}
-			disabled={gameStatus !== GameStatus.SOLVING}
-			class="button-zero"
-		>
-			0
-		</button>
-		<button
-			on:click={handleBackspace}
-			disabled={gameStatus !== GameStatus.SOLVING || playerInput.length === 0}
-			class="button-backspace"
-		>
-			DEL
-		</button>
-	</div>
-
-	<!-- Cast Button -->
-	<div class="cast-area">
-		<!-- Cast button -->
-		<button
-			on:click={handleCastSpell}
-			disabled={gameStatus !== GameStatus.SOLVING || playerInput === '' || !selectedSpell}
-			class:glow={gameStatus === GameStatus.SOLVING && playerInput !== '' && !!selectedSpell}
-		>
-			CAST SPELL
-		</button>
+	<!-- Conditional Numpad Rendering -->
+	<div class="numpad-area">
+		{#if gameMode === 'solver'}
+			<SolverNumpad
+				{gameStatus}
+				{playerInput}
+				on:handleInput={handleAnswerInput}
+				on:clearInput={handleClearAnswerInput}
+				on:handleBackspace={handleAnswerBackspace}
+			/>
+		{:else if gameMode === 'crafter'}
+			<CrafterNumpad
+				{gameStatus}
+				{isCraftingPhase}
+				{playerInput}
+				{selectedSpell}
+				{craftedEquationString}
+				on:inputChar={handleCrafterInputChar}
+				on:clear={handleClearCraftedEquation}
+				on:backspace={handleCrafterBackspace}
+				on:submitEquation={handleSubmitEquation}
+				on:castSpell={handleCastSpell}
+			/>
+		{/if}
 	</div>
 </div>
 
@@ -156,29 +222,20 @@
 		max-width: 500px; /* Example max width */
 		max-height: 800px; /* Example max height */
 		width: 90%;
-		height: 95%;
+		height: 100%;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: space-between;
-		padding: 1rem;
+		justify-content: flex-start; /* Changed from space-between */
+		padding: 1rem 1rem 0 1rem; /* Increased bottom padding */
 		box-sizing: border-box;
 		font-family: sans-serif;
 		background-color: #f0f4f8;
 		color: #333;
 		border-radius: 10px;
 		box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+		overflow-y: auto; /* Add vertical scroll if content overflows */
 	}
-
-	/* Add shake animation for player hit */
-	/* These shake animations are now controlled by the parent via arena-wrapper */
-	/* .equation-arena-container.shake {
-		animation: shake-player-hit 0.2s ease-in-out;
-	}
-
-	.equation-arena-container.shake-shield {
-		animation: shake-shield-block 0.3s ease-in-out;
-	} */
 
 	/* --- Existing Styles below (make sure they don't conflict) --- */
 	.top-bar {
@@ -242,7 +299,7 @@
 	}
 
 	.enemy-area {
-		flex-grow: 1;
+		/* flex-grow: 1; */ /* Removed flex-grow */
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
@@ -250,6 +307,7 @@
 		width: 100%;
 		gap: 0.25rem; /* Add small gap between elements */
 		position: relative; /* Make this the reference for absolute positioning */
+		margin-bottom: 1rem; /* Added margin */
 	}
 
 	.enemy-icon {
@@ -298,6 +356,7 @@
 		display: flex;
 		gap: 1rem;
 		margin-bottom: 1rem;
+		/* Added margin-bottom back, as it was removed in prev screenshot */
 	}
 	.spell-selection button {
 		padding: 0.8rem 1.5rem;
@@ -334,6 +393,9 @@
 		align-items: center;
 		transition: background-color 0.1s ease-in-out;
 		margin-bottom: 1rem; /* Add spacing below the equation */
+		font-family: monospace; /* Better for equations */
+		font-size: 1.6rem; /* Adjust size as needed */
+		min-height: 50px; /* Ensure consistent height */
 	}
 
 	.equation-display.correct {
@@ -364,84 +426,23 @@
 		position: relative;
 	}
 
-	.number-pad {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 0.5rem;
-		margin-bottom: 1rem;
-		width: 70%; /* Adjust width slightly */
-		max-width: 250px;
-	}
-	.number-pad button {
-		padding: 1rem;
-		font-size: 1.2rem;
-		border: 1px solid #ccc;
-		border-radius: 4px;
-		cursor: pointer;
-		background-color: #fff;
-		transition:
-			background-color 0.2s,
-			transform 0.15s ease-out; /* Add transform transition */
-	}
-	.number-pad button:hover:not(:disabled) {
-		background-color: #eee;
-		transform: scale(1.1); /* Scale up on hover */
-	}
-	.number-pad button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* Position Clear (C), Zero (0), and Backspace buttons */
-	.button-clear {
-		grid-column: 1 / 2; /* First column */
-	}
-	.button-zero {
-		grid-column: 2 / 3; /* Second column */
-	}
-	.button-backspace {
-		grid-column: 3 / 4; /* Third column */
-	}
-
-	.cast-area {
+	.numpad-area {
 		width: 100%;
 		display: flex;
 		justify-content: center;
 	}
-	.cast-area button {
-		padding: 1rem 2.5rem;
-		font-size: 1.2rem;
-		font-weight: bold;
-		border: none;
-		border-radius: 6px;
-		cursor: pointer;
-		background-color: #bdc3c7; /* Default grey */
-		color: #fff;
-		transition: all 0.2s ease;
-	}
-	.cast-area button:not(:disabled) {
-		background-color: #2ecc71; /* Green when active */
-	}
-	.cast-area button:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-	.cast-area button.glow:not(:disabled) {
-		animation: pulse-glow 1.5s infinite ease-in-out; /* Pulsing glow animation */
-	}
 
-	/* Added styles for damage text */
 	.damage-dealt-text {
-		position: absolute; /* Position relative to the enemy area */
-		top: 20%; /* Position near the top of the enemy area */
-		left: 50%; /* Center horizontally within the enemy area */
+		position: absolute;
+		top: 20%;
+		left: 50%;
 		transform: translate(-50%, -50%);
-		font-size: 1.5rem; /* Make it noticeable */
+		font-size: 1.5rem;
 		font-weight: bold;
-		color: #e74c3c; /* Red for damage */
-		text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); /* Add some contrast */
-		pointer-events: none; /* Prevent interaction */
-		opacity: 0; /* Start invisible for animation */
+		color: #e74c3c;
+		text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+		pointer-events: none;
+		opacity: 0;
 	}
 
 	.animate-damage {
@@ -494,32 +495,6 @@
 		transform: scale(0.95); /* Slightly depress */
 	}
 
-	.number-pad button {
-		/* ... existing styles ... */
-		transition:
-			background-color 0.2s,
-			transform 0.15s ease-out;
-	}
-	.number-pad button:hover:not(:disabled) {
-		background-color: #eee;
-		transform: scale(1.1);
-	}
-	.number-pad button:active:not(:disabled) {
-		transform: scale(1); /* Scale down slightly more than hover */
-		background-color: #ddd; /* Darken slightly */
-	}
-
-	.cast-area button {
-		/* ... existing styles ... */
-		transition: all 0.2s ease;
-	}
-	.cast-area button:active:not(:disabled) {
-		transform: scale(0.95); /* Depress */
-	}
-	.cast-area button.glow:not(:disabled) {
-		animation: pulse-glow 1.5s infinite ease-in-out; /* Pulsing glow animation */
-	}
-
 	@keyframes pulse-glow {
 		0% {
 			box-shadow: 0 0 8px rgba(46, 204, 113, 0.5);
@@ -541,5 +516,78 @@
 
 	.enemy-icon.defeated {
 		animation: enemy-defeat 0.6s ease-in forwards;
+	}
+
+	/* Added styles for feedback overlay and bonuses */
+	.feedback-overlay {
+		position: absolute;
+		top: 50%; /* Center vertically relative to enemy area */
+		left: 50%;
+		transform: translate(-50%, -50%);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 5px;
+		pointer-events: none; /* Prevent interaction */
+	}
+
+	.damage-dealt-text {
+		font-size: 1.8rem;
+		font-weight: bold;
+		color: #e74c3c;
+		text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+		opacity: 0;
+	}
+
+	.bonus-display {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 2px;
+		background-color: rgba(255, 215, 0, 0.8); /* Gold background */
+		color: #4b3621; /* Dark brown text */
+		padding: 5px 10px;
+		border-radius: 5px;
+		font-size: 0.9rem;
+		font-weight: bold;
+		text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.3);
+		opacity: 0;
+	}
+
+	.animate-damage {
+		animation: show-feedback 1s ease-out forwards;
+	}
+	.animate-bonus {
+		animation: show-feedback 1.2s ease-out 0.1s forwards; /* Slight delay */
+	}
+
+	@keyframes show-feedback {
+		0% {
+			opacity: 0;
+			transform: translateY(20px) scale(0.8);
+		}
+		20% {
+			opacity: 1;
+			transform: translateY(-5px) scale(1.1);
+		}
+		80% {
+			opacity: 1;
+			transform: translateY(-10px) scale(1);
+		}
+		100% {
+			opacity: 0;
+			transform: translateY(-20px) scale(0.9);
+		}
+	}
+
+	.equation-display.eval-error {
+		border-color: #e74c3c; /* Red border for error */
+		background-color: #fadbd8;
+	}
+
+	.error-text {
+		font-size: 1.2rem; /* Slightly smaller */
+		color: #c0392b; /* Darker red */
+		font-weight: bold;
 	}
 </style>

@@ -1,0 +1,33 @@
+[
+	{
+		"id": "distributive",
+		"name": "Distributive Bonus!",
+		"description": "e.g., a*(b+c) = a*b + a*c",
+		"powerMultiplier": 1.5,
+		"mode": "crafter",
+		"level": 1
+	},
+	{
+		"id": "benchmark",
+		"name": "Benchmark Bonus!",
+		"description": "Result is 1/2, 3/4, or 1",
+		"powerMultiplier": 1.5,
+		"mode": "crafter",
+		"level": 2
+	},
+	{
+		"id": "place_value",
+		"name": "Place Value Bonus!",
+		"description": "e.g., 0.1 * 10 = 1",
+		"powerMultiplier": 1.5,
+		"mode": "crafter",
+		"level": 3
+	},
+	{
+		"id": "commutative",
+		"name": "Symmetry Bonus",
+		"description": "e.g., a*b = b*a",
+		"powerMultiplier": 1.25,
+		"mode": "crafter"
+	}
+]

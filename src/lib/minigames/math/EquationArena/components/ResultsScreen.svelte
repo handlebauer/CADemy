@@ -1,22 +1,30 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
+	// import { createEventDispatcher } from 'svelte'; // Removed
+	import type { GradeLevel, GameMode } from '../types';
 
-	const dispatch = createEventDispatcher();
+	// const dispatch = createEventDispatcher(); // Removed
 
 	export let playerHealth: number;
 	export let equationsSolvedCorrectly: number;
 	export let formattedTimeTaken: string;
+	export let selectedGrade: GradeLevel | null;
+	export let gameMode: GameMode | null;
 
-	function handleExit() {
-		dispatch('exitGame');
+	export function handleExit() {
+		// Logic can remain here, or be moved to the parent
+		// In this case, the parent already handles the logic, so this function
+		// essentially just serves as the prop name now.
+		console.log('Exit clicked in ResultsScreen');
 	}
 
-	function handleNextLevel() {
-		dispatch('nextLevel');
+	// Just serves as a prop name now
+	export function handleNextLevel() {
+		// console.log('Next Level clicked in ResultsScreen');
 	}
 
-	function handleTryAgain() {
-		dispatch('tryAgain');
+	// Just serves as a prop name now
+	export function handleTryAgain() {
+		// console.log('Try Again clicked in ResultsScreen');
 	}
 </script>
 
@@ -35,6 +43,8 @@
 	<div class="results-stats">
 		<p>Equations Solved: {equationsSolvedCorrectly}</p>
 		<p>Time Taken: {formattedTimeTaken}</p>
+		{#if selectedGrade}<p>Grade: {selectedGrade}</p>{/if}
+		{#if gameMode}<p>Mode: {gameMode}</p>{/if}
 		<!-- Add other stats here later -->
 	</div>
 	<div class="results-feedback-prompt">
@@ -72,7 +82,6 @@
 		font-family: sans-serif;
 		width: 90%;
 		max-width: 400px;
-		/* Removed animation: pulse-shield-bar 1.5s infinite ease-in-out; as it likely belongs elsewhere */
 	}
 
 	.results-title {

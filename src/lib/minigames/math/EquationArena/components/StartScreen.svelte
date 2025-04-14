@@ -1,7 +1,15 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
+	import type { GameMode, GradeLevel } from '../types';
 
-	const dispatch = createEventDispatcher();
+	const dispatch = createEventDispatcher<{ startGame: void }>();
+
+	// Props passed from the parent (EquationArena.svelte)
+	export let selectedGrade: GradeLevel | null = null;
+	export let gameMode: GameMode | null = null;
+
+	// Capitalize game mode for display
+	$: displayMode = gameMode ? gameMode.charAt(0).toUpperCase() + gameMode.slice(1) : 'N/A';
 
 	function handleStart() {
 		dispatch('startGame');
@@ -13,6 +21,14 @@
 	<p class="start-instructions animate-fade-in-staggered delay-2">
 		Solve equations to defeat the enemy!
 	</p>
+
+	{#if selectedGrade && gameMode}
+		<div class="mode-info animate-fade-in-staggered delay-2a">
+			<span>Grade: <strong>{selectedGrade}</strong></span>
+			<span>Mode: <strong>{displayMode}</strong></span>
+		</div>
+	{/if}
+
 	<button class="start-button animate-fade-in-staggered delay-3" on:click={handleStart}>
 		Start Game
 	</button>
@@ -47,9 +63,24 @@
 	.start-instructions {
 		font-size: 1.1rem;
 		color: #555; /* Medium grey */
-		margin-bottom: 2.5rem;
+		margin-bottom: 1.5rem; /* Reduced margin */
 		max-width: 80%;
 		line-height: 1.6;
+	}
+
+	.mode-info {
+		display: flex;
+		gap: 1rem;
+		margin-bottom: 2rem; /* Spacing before button */
+		padding: 0.5rem 1rem;
+		background-color: rgba(0, 0, 0, 0.04);
+		border-radius: 6px;
+		font-size: 1rem;
+		color: #444;
+	}
+
+	.mode-info strong {
+		color: #2c3e50;
 	}
 
 	.start-button {

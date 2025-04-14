@@ -1,0 +1,38 @@
+[
+	{
+		"id": "dragon",
+		"name": "Math Dragon",
+		"health": 100,
+		"attackInterval": 10000,
+		"damage": 10,
+		"mode": "solver",
+		"level": 1
+	},
+	{
+		"id": "order_keeper",
+		"name": "Order Keeper",
+		"health": 75,
+		"attackInterval": 9000,
+		"damage": 15,
+		"mode": "crafter",
+		"level": 1
+	},
+	{
+		"id": "fraction_fiend",
+		"name": "Fraction Fiend",
+		"health": 90,
+		"attackInterval": 8000,
+		"damage": 18,
+		"mode": "crafter",
+		"level": 2
+	},
+	{
+		"id": "decimal_demon",
+		"name": "Decimal Demon",
+		"health": 100,
+		"attackInterval": 7000,
+		"damage": 20,
+		"mode": "crafter",
+		"level": 3
+	}
+]

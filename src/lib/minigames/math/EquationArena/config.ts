@@ -1,26 +1,45 @@
-import type { TweakpaneConfigBinding } from './types';
+import type { TweakpaneConfigBinding, GradeConfig, EnemyConfig, BonusConfig } from './types';
 
-export const ENEMY_ATTACK_INTERVAL = 8_000; // ms delay between enemy attacks
+// Import configuration data
+import gradesData from './config/grades.json';
+import enemiesData from './config/enemies.json';
+import bonusesJsonData from './config/bonuses.json';
+
+// --- Game Configs ---
+
+// Define a type for the raw bonus data from JSON (without the check function)
+type BonusData = Omit<BonusConfig, 'check'>;
+
+// Assert types for imported JSON data, handling potential type mismatches
+export const grades: GradeConfig[] = gradesData as GradeConfig[];
+export const enemies: EnemyConfig[] = enemiesData as EnemyConfig[];
+
+// Map raw bonus data to BonusConfig, adding the placeholder check function
+export const bonuses: BonusConfig[] = (bonusesJsonData as BonusData[]).map((bonusData) => ({
+	...bonusData,
+	// Placeholder function - real logic will be implemented later
+	check: (_equation: string, _answer: number): boolean => {
+		console.warn(`Bonus check for '${bonusData.id}' not implemented.`);
+		return false;
+	}
+}));
+
+// --- Global Timing & Damage Settings (can be overridden by enemy/level config) ---
+
 export const RESULT_DISPLAY_DELAY = 1_500; // ms delay before next round
 
-export const ENEMY_DAMAGE = 15; // damage inflicted on player per attack
-export const FIRE_DAMAGE = 50; // damage inflicted on enemy per spell cast
+// export const ENEMY_DAMAGE = 15; // Now defined per-enemy in enemies.json
+export const FIRE_DAMAGE = 25; // Base damage inflicted by FIRE spell (can be modified by bonuses)
 
+// --- Tweakpane Dev Config ---
+
+// TODO: Update Tweakpane bindings later to reflect dynamic enemy configs
+// Use the original type, but only include bindings for config values still defined here.
 export const equationArenaTweakpaneBindings: TweakpaneConfigBinding[] = [
-	{
-		key: 'ENEMY_ATTACK_INTERVAL',
-		options: { label: 'Enemy Attack (ms)', min: 500, max: 20000, step: 100 },
-		folderTitle: 'Timings'
-	},
 	{
 		key: 'RESULT_DISPLAY_DELAY',
 		options: { label: 'Result Delay (ms)', min: 100, max: 5000, step: 100 },
 		folderTitle: 'Timings'
-	},
-	{
-		key: 'ENEMY_DAMAGE',
-		options: { label: 'Enemy Damage', min: 1, max: 50, step: 1 },
-		folderTitle: 'Damage'
 	},
 	{
 		key: 'FIRE_DAMAGE',
