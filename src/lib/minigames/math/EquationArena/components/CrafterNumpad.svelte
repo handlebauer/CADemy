@@ -139,12 +139,6 @@
 		box-shadow: none;
 	}
 
-	/* Style for non-crafting phase (Cast Spell state) */
-	.submit-btn:not(.glow) {
-		/* Base styles are for CRAFT, override for CAST SPELL */
-		/* Consider using the :not(:disabled) */
-	}
-
 	.submit-btn.glow {
 		background: linear-gradient(145deg, #f093fb, #f5576c); /* Pink/Red Gradient */
 		color: white;
