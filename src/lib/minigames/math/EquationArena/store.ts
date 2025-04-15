@@ -423,11 +423,20 @@ function createArenaStore() {
 					return state;
 
 				// Basic validation: Ensure equation isn't empty and doesn't end with an operator
-				if (
-					state.craftedEquationString === '' ||
-					isOperator(state.craftedEquationString.slice(-1))
-				) {
-					console.warn('Invalid equation submitted for crafting.'); // TODO: Provide UI feedback
+				const trimmedEquation = state.craftedEquationString.trim(); // Trim whitespace
+				if (trimmedEquation === '' || isOperator(trimmedEquation.slice(-1))) {
+					console.warn('Invalid equation submitted for crafting: Empty or ends with operator.'); // TODO: Provide UI feedback
+					// TODO: Set an evaluationError maybe?
+					return state;
+				}
+
+				// New validation: Ensure at least one operator is present
+				const hasOperator = trimmedEquation.split('').some(isOperator);
+				if (!hasOperator) {
+					console.warn(
+						'Invalid equation submitted for crafting: Must contain at least one operator.'
+					); // TODO: Provide UI feedback
+					// TODO: Set an evaluationError maybe?
 					return state;
 				}
 
