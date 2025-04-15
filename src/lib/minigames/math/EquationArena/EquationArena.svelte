@@ -5,13 +5,17 @@
 	import { minigameStore } from '$lib/stores/minigameStore';
 	import { setupTweakpane, type TweakpaneBindingParams } from '$lib/utils/tweakpane';
 
-	import { FIRE_DAMAGE, RESULT_DISPLAY_DELAY, equationArenaTweakpaneBindings } from './config';
+	import {
+		FIRE_DAMAGE,
+		RESULT_DISPLAY_DELAY,
+		equationArenaTweakpaneBindings
+	} from './config/index';
 	import { getCrafterLevelConfig } from './config/crafterLevels';
 
 	import { arenaStore, type ArenaState } from './store';
 	import { GameStatus, type SpellType, type GradeLevel, type BonusConfig } from './types';
 
-	import './animations.css';
+	import './styles/animations.css';
 
 	// Import screen components from new location
 	import GradeSelectionScreen from './components/screens/GradeSelectionScreen.svelte';

@@ -1,9 +1,9 @@
-import type { TweakpaneConfigBinding, GradeConfig, EnemyConfig, BonusConfig } from './types';
+import type { TweakpaneConfigBinding, GradeConfig, EnemyConfig, BonusConfig } from '../types';
 
 // Import configuration data
-import gradesData from './config/grades.json';
-import enemiesData from './config/enemies.json';
-import bonusesJsonData from './config/bonuses.json';
+import gradesData from './grades.json';
+import enemiesData from './enemies.json';
+import bonusesJsonData from './bonuses.json';
 
 // --- Game Configs ---
 

@@ -1,7 +1,7 @@
 import { getCrafterLevelConfig } from '../config/crafterLevels';
 import { FIRE_DAMAGE, grades, enemies } from '../config';
 import { evaluateEquation } from '../utils/math';
-import { getActiveBonuses } from '../bonuses';
+import { getActiveBonuses } from '../config/bonusLogic';
 
 import { initialArenaState, type ArenaState } from './index';
 import { generateSolverEquation } from './helpers';

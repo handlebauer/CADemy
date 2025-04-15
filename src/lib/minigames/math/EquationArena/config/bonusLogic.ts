@@ -1,7 +1,7 @@
 import type { MathNode } from 'mathjs';
-import type { BonusConfig, GameMode } from './types';
-import { bonuses as bonusDefinitions } from './config'; // Import the configured bonuses
-import { parseEquation } from './utils/math'; // Import the parser from the renamed file
+import type { BonusConfig, GameMode } from '../types';
+import { bonuses as bonusDefinitions } from './index';
+import { parseEquation } from '../utils/math';
 
 // --- Individual Bonus Check Functions --- //
 // These are placeholders and will need actual logic using the AST (MathNode)
