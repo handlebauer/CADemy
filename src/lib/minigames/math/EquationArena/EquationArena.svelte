@@ -503,7 +503,7 @@
 		{#if !$arenaStore.selectedGrade}
 			<GradeSelectionScreen on:selectGrade={handleGradeSelected} />
 		{:else if $arenaStore.gameStatus === GameStatus.PRE_GAME}
-			<StartScreen selectedGrade={$arenaStore.selectedGrade} on:startGame={handleStartGame} />
+			<StartScreen on:startGame={handleStartGame} />
 		{:else if $arenaStore.gameStatus !== GameStatus.GAME_OVER}
 			<GameUI
 				{...$arenaStore}
