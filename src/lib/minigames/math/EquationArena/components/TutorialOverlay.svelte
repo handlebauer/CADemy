@@ -5,10 +5,10 @@
 
 	import type { Driver, DriveStep } from 'driver.js';
 
-	const dispatch = createEventDispatcher<{ nextStep: void }>();
+	const dispatch = createEventDispatcher<{ nextStep: void; tutorialSkipped: void }>();
 
 	// Input prop for the current tutorial step (1, 2, or 3)
-	export let step: number = 1;
+	export const step: number = 1;
 
 	let driverObj: Driver;
 
@@ -49,18 +49,35 @@
 				align: 'center',
 				onNextClick: () => {
 					dispatch('nextStep');
-					driverObj.moveNext();
+					driverObj.destroy();
 				}
 			}
 		}
 	];
 
+	// Tutorial completed flag key
+	const TUTORIAL_COMPLETED_KEY = 'equationArenaTutorialCompleted';
+
 	// Initialize and start the tour
 	function initTour() {
 		driverObj = driver({
 			showProgress: true,
-			nextBtnText: step === 3 ? 'Got it!' : 'Next',
-			steps: tourSteps
+			allowClose: true,
+			onDestroyed: () => {
+				console.log('Tutorial destroyed, setting flag.');
+				try {
+					localStorage.setItem(TUTORIAL_COMPLETED_KEY, 'true');
+				} catch (e) {
+					console.error('Failed to set localStorage item:', e);
+				}
+			},
+			steps: tourSteps.map((stepConfig, index) => ({
+				...stepConfig,
+				popover: {
+					...stepConfig.popover,
+					doneBtnText: index === tourSteps.length - 1 ? 'Got it!' : undefined
+				}
+			}))
 		});
 
 		// Start the tour
@@ -68,7 +85,25 @@
 	}
 
 	onMount(() => {
-		initTour();
+		let tutorialCompleted = false;
+		try {
+			tutorialCompleted = localStorage.getItem(TUTORIAL_COMPLETED_KEY) === 'true';
+		} catch (e) {
+			console.error('Failed to read localStorage item:', e);
+		}
+
+		if (tutorialCompleted) {
+			console.log('Equation Arena Crafter tutorial already completed, skipping.');
+			dispatch('tutorialSkipped');
+			return;
+		}
+
+		const timer = setTimeout(() => {
+			console.log('Initializing tutorial tour.');
+			initTour();
+		}, 150);
+
+		return () => clearTimeout(timer);
 	});
 
 	onDestroy(() => {

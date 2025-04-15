@@ -138,6 +138,12 @@
 		arenaStore.advanceTutorial();
 	}
 
+	// Called when the tutorial is skipped because it was already completed
+	function handleTutorialSkipped() {
+		console.log('Tutorial skipped, calling store action.');
+		arenaStore.skipTutorialAndStart();
+	}
+
 	// --- Keyboard handler ---
 	function handleKeyDown(event: KeyboardEvent) {
 		// --- Disable ALL keyboard input if tutorial is active ---
@@ -535,7 +541,11 @@
 
 	<!-- Tutorial Overlay -->
 	{#if $arenaStore.tutorialStep > 0}
-		<TutorialOverlay step={$arenaStore.tutorialStep} on:nextStep={handleNextTutorialStep} />
+		<TutorialOverlay
+			step={$arenaStore.tutorialStep}
+			on:nextStep={handleNextTutorialStep}
+			on:tutorialSkipped={handleTutorialSkipped}
+		/>
 	{/if}
 </div>
 

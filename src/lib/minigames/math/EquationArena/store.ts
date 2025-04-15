@@ -645,6 +645,22 @@ function createArenaStore() {
 					// Advance to the next step
 					return { ...state, tutorialStep: nextStep };
 				}
+			}),
+
+		skipTutorialAndStart: () =>
+			update((state): ArenaState => {
+				if (state.gameMode === 'crafter' && state.needsCrafterTutorial && state.tutorialStep > 0) {
+					console.log('Skipping tutorial and starting game.');
+					return {
+						...state,
+						tutorialStep: 0,
+						needsCrafterTutorial: false, // Mark tutorial as no longer needed
+						gameStatus: GameStatus.SOLVING // Ensure game starts
+					};
+				} else {
+					console.warn('skipTutorialAndStart called in unexpected state:', state);
+					return state; // Don't change state if called inappropriately
+				}
 			})
 	};
 }
