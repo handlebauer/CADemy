@@ -247,6 +247,7 @@
 		width: 100%;
 		padding: 0.5rem 1rem; /* Add some padding */
 		box-sizing: border-box;
+		margin-bottom: 1.5rem; /* Add small margin below top bar */
 	}
 
 	.health-player {
@@ -309,7 +310,7 @@
 		width: 100%;
 		gap: 0.25rem; /* Add small gap between elements */
 		position: relative; /* Make this the reference for absolute positioning */
-		margin-bottom: 1rem; /* Added margin */
+		margin-bottom: 2rem; /* Increased spacing */
 	}
 
 	.enemy-icon {
@@ -356,9 +357,10 @@
 
 	.spell-selection {
 		display: flex;
+		justify-content: center;
 		gap: 1rem;
-		margin-bottom: 1rem;
-		/* Added margin-bottom back, as it was removed in prev screenshot */
+		width: 100%;
+		margin-bottom: 2rem; /* Increased spacing */
 	}
 	.spell-selection button {
 		padding: 0.8rem 1.5rem;
@@ -382,22 +384,24 @@
 	}
 
 	.equation-display {
-		background-color: #fff9e6;
-		border: 1px solid #f1c40f;
-		color: #333;
-		padding: 1rem 1.5rem;
-		width: 300px;
-		min-height: auto;
+		width: 350px;
+		min-height: auto; /* Ensure it has some height */
+		background-color: #fffbea; /* Light yellow background */
+		border: 2px solid #f9d423; /* Yellow border */
 		border-radius: 8px;
+		padding: 1rem;
+		box-sizing: border-box;
 		display: flex;
-		flex-direction: row;
-		justify-content: center;
 		align-items: center;
-		transition: background-color 0.1s ease-in-out;
-		margin-bottom: 1rem; /* Add spacing below the equation */
-		font-family: monospace; /* Better for equations */
-		font-size: 1.6rem; /* Adjust size as needed */
-		min-height: 50px; /* Ensure consistent height */
+		justify-content: center;
+		font-size: 1.8em; /* Larger font size */
+		font-weight: bold;
+		text-align: center;
+		transition:
+			background-color 0.3s ease,
+			border-color 0.3s ease;
+		margin-bottom: 1.5rem;
+		overflow: hidden;
 	}
 
 	.equation-display.correct {

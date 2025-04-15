@@ -72,16 +72,16 @@
 	.crafter-numpad {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr); /* 4 columns */
-		gap: 0.75rem; /* Adjust gap as needed */
+		gap: 0.5rem;
 		width: 90%;
-		max-width: 380px; /* Adjust width slightly */
+		max-width: 320px;
 	}
 
 	/* --- Parentheses Wrapper Style --- */
 	.paren-buttons {
 		grid-column: span 2; /* Make the wrapper span 2 columns */
 		display: flex;
-		gap: 0.75rem; /* Maintain gap between paren buttons */
+		gap: 0.5rem;
 	}
 	.paren-buttons button {
 		flex: 1; /* Make buttons fill the wrapper space */
@@ -89,17 +89,17 @@
 
 	/* General button style (kept from previous reversion) */
 	button {
-		padding: 1rem;
-		font-size: 1.2em; /* Slightly larger font */
+		padding: 0.75rem;
+		font-size: 1.1em;
 		border: 1px solid #ccc;
-		border-radius: 8px; /* More rounded */
+		border-radius: 8px;
 		cursor: pointer;
 		background-color: #fff;
 		transition:
 			background-color 0.2s,
 			transform 0.15s ease-out;
 		font-family: inherit;
-		min-height: 50px; /* Ensure good height */
+		min-height: 45px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -129,10 +129,9 @@
 		border-color: #badbcc;
 		font-weight: bold;
 		transition: all 0.2s ease;
-		/* Add base styles from old .cast-area button */
-		padding: 0.9rem 2.5rem;
-		font-size: 1.2rem;
-		color: #155724; /* Dark green text */
+		padding: 0.7rem 2rem;
+		font-size: 1.1rem;
+		color: #155724;
 		box-shadow: 0 3px 8px rgba(30, 87, 51, 0.4);
 	}
 	.submit-btn:hover:not(:disabled) {
