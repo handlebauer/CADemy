@@ -195,13 +195,16 @@
 					// Crafter Mode: Crafting Input
 					if (
 						(event.key >= '0' && event.key <= '9') ||
-						['+', '-', '*', '/', '(', ')'].includes(event.key)
+						['+', '-', '*', '/', '(', ')', '.'].includes(event.key)
 					) {
-						// Map * to × and / to ÷ for consistency?
+						// Map * to × if needed
 						let char = event.key;
 						if (char === '*') char = '×';
-						if (char === '/') char = '÷';
-						arenaStore.appendToCraftedEquation(char);
+
+						// Check against allowed characters for the current level BEFORE sending
+						if ($arenaStore.allowedCrafterChars && $arenaStore.allowedCrafterChars.includes(char)) {
+							arenaStore.appendToCraftedEquation(char);
+						}
 					} else if (event.key === 'Enter') {
 						arenaStore.finalizeCrafting();
 					} else if (event.key === 'Backspace') {
@@ -213,6 +216,11 @@
 					// Crafter Mode: Answer Input
 					if (event.key >= '0' && event.key <= '9') {
 						arenaStore.handleInput(parseInt(event.key, 10));
+					} else if (event.key === '.') {
+						arenaStore.handleInput('.');
+					} else if (event.key === '/') {
+						// Allow / input only during answer phase (validation happens in store)
+						arenaStore.handleInput('/');
 					} else if (event.key === 'Enter') {
 						arenaStore.castSpell();
 					} else if (event.key === 'Backspace') {

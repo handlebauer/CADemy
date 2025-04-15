@@ -21,6 +21,11 @@
 	export let playerInput: string;
 	export let selectedSpell: SpellType | null;
 	export let craftedEquationString: string;
+
+	// New prop for allowed characters
+	export let allowedChars: string[] | null = null;
+	// New prop for craft validation
+	export let isCraftedEquationValidForLevel: boolean = false;
 </script>
 
 <!-- Reworked layout to match iOS calculator style (4 columns) -->
@@ -34,17 +39,19 @@
 		<button
 			class="op-btn special-btn"
 			on:click={() => dispatch('inputChar', '(')}
-			disabled={!isCraftingPhase}
+			disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('('))}
 			>(
 		</button>
 		<button
 			class="op-btn special-btn"
 			on:click={() => dispatch('inputChar', ')')}
-			disabled={!isCraftingPhase}>)</button
+			disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes(')'))}>)</button
 		>
 	</div>
-	<button class="op-btn" on:click={() => dispatch('inputChar', '÷')} disabled={!isCraftingPhase}
-		>÷</button
+	<button
+		class="op-btn"
+		on:click={() => dispatch('inputChar', '/')}
+		disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('/'))}>÷</button
 	>
 
 	<!-- Row 2 -->
@@ -63,8 +70,10 @@
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '9' : 9)}>9</button
 	>
-	<button class="op-btn" on:click={() => dispatch('inputChar', '×')} disabled={!isCraftingPhase}
-		>×</button
+	<button
+		class="op-btn"
+		on:click={() => dispatch('inputChar', '×')}
+		disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('×'))}>×</button
 	>
 
 	<!-- Row 3 -->
@@ -83,8 +92,10 @@
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '6' : 6)}>6</button
 	>
-	<button class="op-btn" on:click={() => dispatch('inputChar', '-')} disabled={!isCraftingPhase}
-		>-</button
+	<button
+		class="op-btn"
+		on:click={() => dispatch('inputChar', '-')}
+		disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('-'))}>-</button
 	>
 
 	<!-- Row 4 -->
@@ -103,8 +114,10 @@
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '3' : 3)}>3</button
 	>
-	<button class="op-btn" on:click={() => dispatch('inputChar', '+')} disabled={!isCraftingPhase}
-		>+</button
+	<button
+		class="op-btn"
+		on:click={() => dispatch('inputChar', '+')}
+		disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('+'))}>+</button
 	>
 
 	<!-- Row 5 -->
@@ -114,7 +127,12 @@
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '0' : 0)}>0</button
 	>
 	<button
-		class="action-btn backspace-btn wide-btn"
+		class="num-btn"
+		on:click={() => dispatch('inputChar', '.')}
+		disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('.'))}>.</button
+	>
+	<button
+		class="action-btn backspace-btn"
 		on:click={() => dispatch(isCraftingPhase ? 'backspace' : 'backspaceAnswer')}
 	>
 		UNDO
@@ -125,7 +143,9 @@
 		class="submit-btn"
 		on:click={() => dispatch(isCraftingPhase ? 'submitEquation' : 'castSpell')}
 		disabled={isCraftingPhase
-			? gameStatus !== GameStatus.SOLVING || !craftedEquationString.trim()
+			? gameStatus !== GameStatus.SOLVING ||
+				!craftedEquationString.trim() ||
+				!isCraftedEquationValidForLevel
 			: gameStatus !== GameStatus.SOLVING || playerInput === '' || !selectedSpell}
 		class:glow={!isCraftingPhase &&
 			gameStatus === GameStatus.SOLVING &&
@@ -182,14 +202,6 @@
 	}
 
 	/* --- Specific Button Layouts & Styles --- */
-
-	.zero-btn {
-		grid-column: 1 / 3; /* Span 2 columns */
-	}
-
-	.wide-btn {
-		grid-column: span 2; /* Make DEL span 2 columns */
-	}
 
 	.submit-btn {
 		grid-column: 1 / -1; /* Span all 4 columns */
@@ -260,5 +272,9 @@
 	}
 	.clear-btn:hover:not(:disabled) {
 		background-color: #ffeeba;
+	}
+
+	.zero-btn {
+		grid-column: 1 / 3; /* Span 2 columns */
 	}
 </style>

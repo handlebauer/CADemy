@@ -46,6 +46,12 @@ export interface ArenaState {
 	// --- Tutorial State ---
 	tutorialStep: number; // 0 = not started/done, 1, 2, 3 = active steps
 	needsCrafterTutorial: boolean; // Flag to indicate if tutorial should run
+
+	// New state for allowed crafter characters
+	allowedCrafterChars: string[] | null;
+
+	// New state for craft validation
+	isCraftedEquationValidForLevel: boolean;
 }
 
 // 2. Initial state
@@ -87,7 +93,13 @@ const initialArenaState: ArenaState = {
 
 	// Tutorial State
 	tutorialStep: 0,
-	needsCrafterTutorial: true // Default to true, will be set to false after completion
+	needsCrafterTutorial: true,
+
+	// Initialize allowed chars
+	allowedCrafterChars: null,
+
+	// Initialize craft validation
+	isCraftedEquationValidForLevel: false
 };
 
 // --- Helper Functions ---
@@ -105,6 +117,40 @@ const getOperationTypeForLevel = (level: number): OperationType => {
 			return OperationType.DIVISION;
 		default:
 			return OperationType.ADDITION;
+	}
+};
+
+// Helper to get allowed characters for Crafter mode based on level
+const getAllowedCharsForCrafterLevel = (level: number): string[] => {
+	const numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+	switch (level) {
+		case 1: // Order of Operations
+			return [...numbers, '+', '-', '×', '(', ')'];
+		case 2: // Fractions (using /)
+			return [...numbers, '+', '-', '/'];
+		case 3: // Decimal Operations
+			return [...numbers, '+', '-', '×', '.'];
+		default: // Default to level 1 rules or a base set? Let's default to level 1 for safety.
+			console.warn(`Unknown crafter level ${level} for allowed chars, defaulting.`);
+			return [...numbers, '+', '-', '×', '(', ')'];
+	}
+};
+
+// Helper to validate crafted equation against level rules
+const validateCraftedEquationForLevel = (equation: string, level: number): boolean => {
+	const trimmedEquation = equation.trim();
+	if (trimmedEquation === '') return false; // Always invalid if empty
+
+	switch (level) {
+		case 1: // Order of Operations: Must contain parentheses
+			return trimmedEquation.includes('(') && trimmedEquation.includes(')');
+		case 2: // Fractions: Must contain division symbol (/)
+			return trimmedEquation.includes('/');
+		case 3: // Decimal Operations: Must contain decimal point
+			return trimmedEquation.includes('.');
+		default:
+			console.warn(`Unknown crafter level ${level} for validation, assuming valid.`);
+			return true; // Allow submission for unknown levels?
 	}
 };
 
@@ -192,6 +238,7 @@ function createArenaStore() {
 					gameStatus: GameStatus.SOLVING,
 					isCraftingPhase: true,
 					craftedEquationString: ''
+					// No need to update allowedChars here, it's set at level start
 				};
 			default:
 				console.error('Unknown game mode');
@@ -206,7 +253,9 @@ function createArenaStore() {
 		reset: () =>
 			update((state) => ({
 				...initialArenaState,
-				needsCrafterTutorial: state.needsCrafterTutorial
+				needsCrafterTutorial: state.needsCrafterTutorial,
+				allowedCrafterChars: null, // Reset allowed chars
+				isCraftedEquationValidForLevel: false // Reset validation
 			})), // Keep tutorial flag on simple reset
 		fullReset: () => set(initialArenaState), // Add a way to fully reset including tutorial flag
 
@@ -275,12 +324,15 @@ function createArenaStore() {
 					case 'crafter': {
 						// If tutorial needed, start it, otherwise start normally
 						const startTutorial = state.needsCrafterTutorial;
+						const allowedChars = getAllowedCharsForCrafterLevel(startingLevel);
 						return {
 							...(baseStartState as ArenaState),
 							gameStatus: startTutorial ? GameStatus.TUTORIAL : GameStatus.SOLVING, // Use TUTORIAL status
 							tutorialStep: startTutorial ? 1 : 0,
 							isCraftingPhase: true,
-							craftedEquationString: ''
+							craftedEquationString: '',
+							allowedCrafterChars: allowedChars, // Set allowed chars for level 1
+							isCraftedEquationValidForLevel: false // Initial validation state
 						};
 					}
 					default:
@@ -331,13 +383,42 @@ function createArenaStore() {
 
 		// --- Input Handling (Handles BOTH modes, dispatched appropriately from UI) ---
 		// For Crafter mode, these handle the ANSWER input phase
-		handleInput: (digit: number) =>
+		handleInput: (
+			value: number | string // Accept number or string
+		) =>
 			update((state) => {
-				// Limit answer input to 4 digits
-				if (state.playerInput.length >= 4) {
-					return state; // Do nothing if already 4 digits
+				const char = value.toString();
+
+				// Basic decimal validation: prevent multiple decimals
+				if (char === '.' && state.playerInput.includes('.')) {
+					return state; // Do nothing if decimal already exists
 				}
-				return { ...state, playerInput: state.playerInput + digit.toString() };
+
+				// Validate / input for Crafter Level 2 Answer Phase
+				if (
+					char === '/' &&
+					state.gameMode === 'crafter' &&
+					state.currentLevelNumber === 2 &&
+					!state.isCraftingPhase
+				) {
+					// Allow / only if:
+					// 1. It's not already present in the input
+					// 2. The input is not empty (cannot start with /)
+					// 3. The previous character isn't already '/' (belt and suspenders)
+					if (
+						state.playerInput.includes('/') ||
+						state.playerInput.length === 0 ||
+						state.playerInput.slice(-1) === '/'
+					) {
+						return state; // Invalid / input
+					}
+				}
+
+				// Limit answer input length (e.g., 5 characters including decimal/slash)
+				if (state.playerInput.length >= 5) {
+					return state;
+				}
+				return { ...state, playerInput: state.playerInput + char }; // Append string value
 			}),
 
 		clearInput: () => update((state) => ({ ...state, playerInput: '' })),
@@ -355,6 +436,12 @@ function createArenaStore() {
 				// Ignore if not in crafting phase
 				if (!state.isCraftingPhase || state.gameStatus !== GameStatus.SOLVING) return state;
 
+				// Check if character is allowed for the current level
+				if (state.allowedCrafterChars && !state.allowedCrafterChars.includes(char)) {
+					console.log(`Character '${char}' not allowed for level ${state.currentLevelNumber}`);
+					return state; // Disallow character
+				}
+
 				const currentEq = state.craftedEquationString;
 
 				// Limit numbers within the equation to 2 digits
@@ -368,7 +455,14 @@ function createArenaStore() {
 
 				// TODO: Add more validation here? (e.g., prevent consecutive operators, leading zeros?)
 
-				return { ...state, craftedEquationString: currentEq + char };
+				const newEquation = currentEq + char;
+				const isValid = validateCraftedEquationForLevel(newEquation, state.currentLevelNumber);
+
+				return {
+					...state,
+					craftedEquationString: newEquation,
+					isCraftedEquationValidForLevel: isValid
+				};
 			}),
 
 		clearCraftedEquation: () =>
@@ -379,7 +473,8 @@ function createArenaStore() {
 					!state.isCraftingPhase
 				)
 					return state;
-				return { ...state, craftedEquationString: '' };
+				// Clear equation and reset validation
+				return { ...state, craftedEquationString: '', isCraftedEquationValidForLevel: false };
 			}),
 
 		backspaceCraftedEquation: () =>
@@ -391,7 +486,15 @@ function createArenaStore() {
 					state.craftedEquationString.length === 0
 				)
 					return state;
-				return { ...state, craftedEquationString: state.craftedEquationString.slice(0, -1) };
+
+				const newEquation = state.craftedEquationString.slice(0, -1);
+				const isValid = validateCraftedEquationForLevel(newEquation, state.currentLevelNumber);
+
+				return {
+					...state,
+					craftedEquationString: newEquation,
+					isCraftedEquationValidForLevel: isValid
+				};
 			}),
 
 		// Transition from crafting phase to answering phase
@@ -418,6 +521,13 @@ function createArenaStore() {
 					console.warn(
 						'Invalid equation submitted for crafting: Must contain at least one operator.'
 					); // TODO: Provide UI feedback
+					// TODO: Set an evaluationError maybe?
+					return state;
+				}
+
+				// Final level-specific validation check (belt and suspenders)
+				if (!state.isCraftedEquationValidForLevel) {
+					console.warn('Invalid equation submitted: Does not meet level requirements.');
 					// TODO: Set an evaluationError maybe?
 					return state;
 				}
@@ -484,9 +594,25 @@ function createArenaStore() {
 							evalError = message; // Store the error message
 						} else {
 							const expectedAnswer = evaluation.value;
-							const playerAnswer = parseFloat(state.playerInput);
-							// Use tolerance for float comparison
-							isCorrect = Math.abs(playerAnswer - expectedAnswer) < 1e-9;
+
+							// Parse player input, allowing for fractions like "2/3"
+							let playerAnswerValue: number | null = null;
+							if (state.currentLevelNumber === 2 && state.playerInput.includes('/')) {
+								const playerEval = evaluateEquation(state.playerInput);
+								if (playerEval.error === null) {
+									playerAnswerValue = playerEval.value;
+								}
+							} else {
+								// Attempt standard float parsing for non-fraction inputs or other levels
+								const parsed = parseFloat(state.playerInput);
+								if (!isNaN(parsed)) {
+									playerAnswerValue = parsed;
+								}
+							}
+
+							// Use tolerance for float comparison if player answer is valid
+							isCorrect =
+								playerAnswerValue !== null && Math.abs(playerAnswerValue - expectedAnswer) < 1e-9;
 
 							if (isCorrect) {
 								message = 'Correct!';
@@ -529,8 +655,8 @@ function createArenaStore() {
 					lastPlayerInput: state.playerInput,
 					lastFullEquation:
 						state.gameMode === 'solver'
-							? state.currentEquation
-							: state.craftedEquationString + ' = ?',
+							? state.currentEquation // Keep solver equation as is (e.g., "5 + 3 = ?")
+							: `${state.craftedEquationString} = ${state.playerInput}`, // Show crafted eq + submitted answer
 					resultMessage: message,
 					equationsSolvedCorrectly: solvedCount,
 					isShieldActive: shieldActivated,
@@ -595,13 +721,17 @@ function createArenaStore() {
 							...(baseNextLevelState as ArenaState),
 							...generateSolverEquation(nextLevelNumber)
 						};
-					case 'crafter':
+					case 'crafter': {
+						const allowedChars = getAllowedCharsForCrafterLevel(nextLevelNumber);
 						return {
 							...(baseNextLevelState as ArenaState),
 							gameStatus: GameStatus.SOLVING,
 							isCraftingPhase: true, // Start crafting phase for new level
-							craftedEquationString: ''
+							craftedEquationString: '',
+							allowedCrafterChars: allowedChars, // Set allowed chars for the new level
+							isCraftedEquationValidForLevel: false // Reset validation for new level
 						};
+					}
 					default:
 						console.error('Unknown game mode during advanceLevelAndStart');
 						return state;

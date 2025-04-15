@@ -3,6 +3,9 @@
 	import type { GameMode, BonusConfig, SpellType, EnemyConfig } from '../types';
 	import { GameStatus } from '../types';
 
+	// Import the new display parser
+	import { parseEquationForDisplay } from '../utils/display';
+
 	// Import the numpad components
 	import SolverNumpad from './SolverNumpad.svelte';
 	import CrafterNumpad from './CrafterNumpad.svelte';
@@ -49,6 +52,15 @@
 	export let activeBonuses: BonusConfig[] = [];
 	export let evaluationError: string | null = null;
 
+	// Add prop for allowed crafter chars from store
+	export let allowedCrafterChars: string[] | null = null;
+
+	// Add prop for crafted equation validation
+	export let isCraftedEquationValidForLevel: boolean = true;
+
+	// Add prop for current level number (needed for fraction display)
+	export let currentLevelNumber: number = 1;
+
 	// --- Helper Function for Spacing ---
 	function formatEquationSpacing(eq: string, placeholder: string = '_'): string {
 		if (!eq) return eq; // Handle null/empty strings
@@ -57,9 +69,9 @@
 		let tempEq = eq.replace(placeholder, placeholderToken);
 
 		// Add spaces around +, -, ×, ÷, =
-		let formatted = tempEq.replace(/([+\\-×÷=])/g, ' $1 '); // Note: escaped hyphen
+		let formatted = tempEq.replace(/([+\-×÷=])/g, ' $1 '); // Note: escaped hyphen
 		// Collapse multiple spaces into one and trim
-		formatted = formatted.replace(/\\s+/g, ' ').trim();
+		formatted = formatted.replace(/\s+/g, ' ').trim();
 
 		// Restore placeholder
 		formatted = formatted.replace(placeholderToken, placeholder);
@@ -195,18 +207,50 @@
 		{:else if gameMode === 'crafter'}
 			{#if gameStatus === GameStatus.SOLVING}
 				{#if isCraftingPhase}
-					<!-- Show equation being crafted -->
-					<span class="equation-text"
-						>{formatEquationSpacing(craftedEquationString || '_', '_')}</span
-					>
+					<!-- Show equation being crafted using parsed segments -->
+					<span class="equation-text">
+						{#each parseEquationForDisplay(craftedEquationString || '_', currentLevelNumber) as segment, i (i)}
+							{#if segment.type === 'fraction'}
+								<span class="fraction">
+									<span class="numerator">{segment.numerator}</span>
+									<span class="denominator">{segment.denominator}</span>
+								</span>
+							{:else if segment.type === 'operator'}
+								<span class="op-num-text"> {segment.value} </span>
+							{:else if segment.type === 'number' || segment.type === 'text' || segment.type === 'placeholder'}
+								<span class="op-num-text">{segment.value}</span>
+							{/if}
+						{/each}
+					</span>
 				{:else}
-					<!-- Show crafted equation for solving -->
-					<span class="equation-text"
-						>{formatEquationSpacing(
-							`${craftedEquationString.trim()} = ${playerInput}_`,
-							playerInput + '_'
-						)}</span
-					>
+					<!-- Show crafted equation for solving using parsed segments -->
+					<span class="equation-text">
+						{#each parseEquationForDisplay(craftedEquationString, currentLevelNumber) as segment, i (i)}
+							{#if segment.type === 'fraction'}
+								<span class="fraction">
+									<span class="numerator">{segment.numerator}</span>
+									<span class="denominator">{segment.denominator}</span>
+								</span>
+							{:else if segment.type === 'operator'}
+								<span class="op-num-text"> {segment.value} </span>
+							{:else if segment.type === 'number' || segment.type === 'text'}
+								<span class="op-num-text">{segment.value}</span>
+							{/if}
+						{/each}
+						<span class="op-num-text"> = </span>
+						{#each parseEquationForDisplay(playerInput + '_', currentLevelNumber) as segment, i (i)}
+							{#if segment.type === 'fraction'}
+								<span class="fraction">
+									<span class="numerator">{segment.numerator}</span>
+									<span class="denominator">{segment.denominator}</span>
+								</span>
+							{:else if segment.type === 'operator'}
+								<span class="op-num-text"> {segment.value} </span>
+							{:else if segment.type === 'number' || segment.type === 'text' || segment.type === 'placeholder'}
+								<span class="op-num-text">{segment.value}</span>
+							{/if}
+						{/each}
+					</span>
 				{/if}
 			{:else if gameStatus === GameStatus.RESULT}
 				<div class="result-equation">
@@ -214,13 +258,21 @@
 						<!-- Show evaluation error -->
 						<span class="error-text">{evaluationError}</span>
 					{:else}
-						<!-- Show solved equation -->
-						<span class="equation-content"
-							>{formatEquationSpacing(
-								lastFullEquation.replace('?', lastPlayerInput),
-								lastPlayerInput
-							)}</span
-						>
+						<!-- Show solved equation using parsed segments -->
+						<span class="equation-content">
+							{#each parseEquationForDisplay(lastFullEquation.replace('?', lastPlayerInput), currentLevelNumber) as segment, i (i)}
+								{#if segment.type === 'fraction'}
+									<span class="fraction">
+										<span class="numerator">{segment.numerator}</span>
+										<span class="denominator">{segment.denominator}</span>
+									</span>
+								{:else if segment.type === 'operator'}
+									<span class="op-num-text"> {segment.value} </span>
+								{:else if segment.type === 'number' || segment.type === 'text'}
+									<span class="op-num-text">{segment.value}</span>
+								{/if}
+							{/each}
+						</span>
 					{/if}
 				</div>
 			{:else}
@@ -249,6 +301,8 @@
 				{playerInput}
 				{selectedSpell}
 				{craftedEquationString}
+				allowedChars={allowedCrafterChars}
+				{isCraftedEquationValidForLevel}
 				on:inputChar={handleCrafterInputChar}
 				on:clear={handleClearCraftedEquation}
 				on:backspace={handleCrafterBackspace}
@@ -430,7 +484,7 @@
 
 	.equation-display {
 		width: 350px;
-		min-height: auto; /* Ensure it has some height */
+		height: 70px; /* Added fixed height */
 		background-color: #fffbea; /* Light yellow background */
 		border: 2px solid #f9d423; /* Yellow border */
 		border-radius: 8px;
@@ -647,5 +701,27 @@
 		content: '\_'; /* Add the underscore */
 		visibility: hidden; /* Make it invisible */
 		margin-left: 2px; /* Approximate spacing */
+	}
+
+	/* --- Fraction Styling --- */
+	:global(.fraction) {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		vertical-align: middle; /* Align with surrounding text */
+		margin: 0 0.1em; /* Small horizontal margin */
+		line-height: 1; /* Prevent extra vertical space */
+	}
+	:global(.numerator) {
+		font-size: 0.8em; /* Slightly smaller */
+		line-height: 1;
+		padding-bottom: 0.1em;
+	}
+	:global(.denominator) {
+		font-size: 0.8em;
+		line-height: 1;
+		border-top: 1.5px solid currentColor; /* Fraction line */
+		padding-top: 0.1em;
 	}
 </style>

@@ -57,3 +57,10 @@ export interface GradeConfig {
 	// equationTypes?: OperationType[];
 	// numberRange?: [min: number, max: number];
 }
+
+export interface DisplaySegment {
+	type: 'fraction' | 'operator' | 'number' | 'text' | 'placeholder';
+	value?: string; // For operators, numbers, text
+	numerator?: string; // For fractions
+	denominator?: string; // For fractions
+}
