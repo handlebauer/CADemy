@@ -20,6 +20,8 @@
 		"@oslojs/crypto": "^1.0.1",
 		"@oslojs/encoding": "^1.1.0",
 		"@types/three": "^0.175.0",
+		"argon2": "^0.41.1",
+		"better-auth": "^1.2.6",
 		"drizzle-orm": "^0.40.0",
 		"postgres": "^3.4.5",
 		"three": "^0.175.0",
