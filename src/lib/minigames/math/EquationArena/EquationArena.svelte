@@ -527,7 +527,6 @@
 				playerHealth={$arenaStore.playerHealth}
 				equationsSolvedCorrectly={$arenaStore.equationsSolvedCorrectly}
 				{formattedTimeTaken}
-				selectedGrade={$arenaStore.selectedGrade}
 				handleExit={handleExitGameEvent}
 				handleNextLevel={handleNextLevelEvent}
 				handleTryAgain={handleTryAgainEvent}

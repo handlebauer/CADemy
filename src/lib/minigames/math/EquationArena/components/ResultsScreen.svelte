@@ -1,27 +1,12 @@
 <script lang="ts">
-	import type { GradeLevel } from '../types';
-
 	export let playerHealth: number;
 	export let equationsSolvedCorrectly: number;
 	export let formattedTimeTaken: string;
-	export let selectedGrade: GradeLevel | null;
 
-	export function handleExit() {
-		// Logic can remain here, or be moved to the parent
-		// In this case, the parent already handles the logic, so this function
-		// essentially just serves as the prop name now.
-		console.log('Exit clicked in ResultsScreen');
-	}
-
-	// Just serves as a prop name now
-	export function handleNextLevel() {
-		// console.log('Next Level clicked in ResultsScreen');
-	}
-
-	// Just serves as a prop name now
-	export function handleTryAgain() {
-		// console.log('Try Again clicked in ResultsScreen');
-	}
+	// Declare handlers purely as props expecting functions from the parent
+	export let handleExit: () => void;
+	export let handleNextLevel: () => void;
+	export let handleTryAgain: () => void;
 </script>
 
 <div class="results-screen">
@@ -39,7 +24,6 @@
 	<div class="results-stats">
 		<p>Equations Solved: {equationsSolvedCorrectly}</p>
 		<p>Time Taken: {formattedTimeTaken}</p>
-		{#if selectedGrade}<p>Grade: {selectedGrade}</p>{/if}
 		<!-- Add other stats here later -->
 	</div>
 	<div class="results-feedback-prompt">

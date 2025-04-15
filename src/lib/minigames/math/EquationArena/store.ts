@@ -333,60 +333,42 @@ function createArenaStore() {
 		// For Crafter mode, these handle the ANSWER input phase
 		handleInput: (digit: number) =>
 			update((state) => {
-				// Allow answer input only when status is SOLVING and NOT crafting (Crafter) or just SOLVING (Solver)
-				if (
-					state.gameStatus !== GameStatus.SOLVING ||
-					(state.gameMode === 'crafter' && state.isCraftingPhase)
-				)
-					return state;
+				// Limit answer input to 4 digits
+				if (state.playerInput.length >= 4) {
+					return state; // Do nothing if already 4 digits
+				}
 				return { ...state, playerInput: state.playerInput + digit.toString() };
 			}),
 
-		clearInput: () =>
-			update((state) => {
-				// Clear answer input only when status is SOLVING and NOT crafting
-				if (
-					state.gameStatus !== GameStatus.SOLVING ||
-					(state.gameMode === 'crafter' && state.isCraftingPhase)
-				)
-					return state;
-				return { ...state, playerInput: '' };
-			}),
-
+		clearInput: () => update((state) => ({ ...state, playerInput: '' })),
 		handleBackspace: () =>
 			update((state) => {
-				// Backspace answer input only when status is SOLVING and NOT crafting
-				if (
-					state.gameStatus !== GameStatus.SOLVING ||
-					(state.gameMode === 'crafter' && state.isCraftingPhase) ||
-					state.playerInput.length === 0
-				)
-					return state;
-				return { ...state, playerInput: state.playerInput.slice(0, -1) };
+				if (state.playerInput.length > 0) {
+					return { ...state, playerInput: state.playerInput.slice(0, -1) };
+				}
+				return state;
 			}),
 
 		// --- Crafter Mode Equation Input Actions ---
 		appendToCraftedEquation: (char: string) =>
 			update((state) => {
-				// Only allow appending during SOLVING state and crafting phase
-				if (
-					state.gameStatus !== GameStatus.SOLVING ||
-					state.gameMode !== 'crafter' ||
-					!state.isCraftingPhase
-				)
-					return state;
+				// Ignore if not in crafting phase
+				if (!state.isCraftingPhase || state.gameStatus !== GameStatus.SOLVING) return state;
 
-				// Basic validation: Prevent consecutive operators, maybe limit length?
-				const lastChar = state.craftedEquationString.slice(-1);
-				if (isOperator(char) && isOperator(lastChar)) {
-					return state; // Don't append consecutive operators
-				}
-				if (isOperator(char) && state.craftedEquationString === '') {
-					return state; // Don't start with an operator (except maybe minus?)
-				}
-				// Add more validation as needed (e.g., parenthesis balancing)
+				const currentEq = state.craftedEquationString;
 
-				return { ...state, craftedEquationString: state.craftedEquationString + char };
+				// Limit numbers within the equation to 2 digits
+				if (/\d/.test(char)) {
+					// Check if the input character is a digit
+					const match = currentEq.match(/(\d+)$/); // Find the last sequence of digits
+					if (match && match[1].length >= 2) {
+						return state; // Do not append if the last number is already 2 digits or more
+					}
+				}
+
+				// TODO: Add more validation here? (e.g., prevent consecutive operators, leading zeros?)
+
+				return { ...state, craftedEquationString: currentEq + char };
 			}),
 
 		clearCraftedEquation: () =>

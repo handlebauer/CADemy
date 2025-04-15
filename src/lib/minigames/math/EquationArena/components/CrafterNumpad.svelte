@@ -3,11 +3,16 @@
 	import { GameStatus, type SpellType } from '../types'; // Import necessary types
 
 	const dispatch = createEventDispatcher<{
+		// Crafting events
 		inputChar: string; // For numbers, operators, parentheses
-		backspace: void;
-		clear: void;
+		backspace: void; // Backspace for crafter
+		clear: void; // Clear for crafter
 		submitEquation: void; // For finishing crafting
-		castSpell: void; // For casting after crafting
+		// Answer input events (when isCraftingPhase is false)
+		inputNumber: number; // For answer numbers
+		backspaceAnswer: void; // Backspace for answer
+		clearAnswer: void; // Clear for answer
+		castSpell: void; // For casting after crafting/answering
 	}>();
 
 	// Props needed for conditional button logic
@@ -21,34 +26,97 @@
 <!-- Reworked layout to match iOS calculator style (4 columns) -->
 <div class="crafter-numpad">
 	<!-- Row 1 -->
-	<button class="action-btn clear-btn" on:click={() => dispatch('clear')}>C</button>
+	<button
+		class="action-btn clear-btn"
+		on:click={() => dispatch(isCraftingPhase ? 'clear' : 'clearAnswer')}>C</button
+	>
 	<div class="paren-buttons">
-		<button class="op-btn special-btn" on:click={() => dispatch('inputChar', '(')}>(</button>
-		<button class="op-btn special-btn" on:click={() => dispatch('inputChar', ')')}>)</button>
+		<button
+			class="op-btn special-btn"
+			on:click={() => dispatch('inputChar', '(')}
+			disabled={!isCraftingPhase}
+			>(
+		</button>
+		<button
+			class="op-btn special-btn"
+			on:click={() => dispatch('inputChar', ')')}
+			disabled={!isCraftingPhase}>)</button
+		>
 	</div>
-	<button class="op-btn" on:click={() => dispatch('inputChar', '÷')}>÷</button>
+	<button class="op-btn" on:click={() => dispatch('inputChar', '÷')} disabled={!isCraftingPhase}
+		>÷</button
+	>
 
 	<!-- Row 2 -->
-	<button class="num-btn" on:click={() => dispatch('inputChar', '7')}>7</button>
-	<button class="num-btn" on:click={() => dispatch('inputChar', '8')}>8</button>
-	<button class="num-btn" on:click={() => dispatch('inputChar', '9')}>9</button>
-	<button class="op-btn" on:click={() => dispatch('inputChar', '×')}>×</button>
+	<button
+		class="num-btn"
+		on:click={() =>
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '7' : 7)}>7</button
+	>
+	<button
+		class="num-btn"
+		on:click={() =>
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '8' : 8)}>8</button
+	>
+	<button
+		class="num-btn"
+		on:click={() =>
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '9' : 9)}>9</button
+	>
+	<button class="op-btn" on:click={() => dispatch('inputChar', '×')} disabled={!isCraftingPhase}
+		>×</button
+	>
 
 	<!-- Row 3 -->
-	<button class="num-btn" on:click={() => dispatch('inputChar', '4')}>4</button>
-	<button class="num-btn" on:click={() => dispatch('inputChar', '5')}>5</button>
-	<button class="num-btn" on:click={() => dispatch('inputChar', '6')}>6</button>
-	<button class="op-btn" on:click={() => dispatch('inputChar', '-')}>-</button>
+	<button
+		class="num-btn"
+		on:click={() =>
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '4' : 4)}>4</button
+	>
+	<button
+		class="num-btn"
+		on:click={() =>
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '5' : 5)}>5</button
+	>
+	<button
+		class="num-btn"
+		on:click={() =>
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '6' : 6)}>6</button
+	>
+	<button class="op-btn" on:click={() => dispatch('inputChar', '-')} disabled={!isCraftingPhase}
+		>-</button
+	>
 
 	<!-- Row 4 -->
-	<button class="num-btn" on:click={() => dispatch('inputChar', '1')}>1</button>
-	<button class="num-btn" on:click={() => dispatch('inputChar', '2')}>2</button>
-	<button class="num-btn" on:click={() => dispatch('inputChar', '3')}>3</button>
-	<button class="op-btn" on:click={() => dispatch('inputChar', '+')}>+</button>
+	<button
+		class="num-btn"
+		on:click={() =>
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '1' : 1)}>1</button
+	>
+	<button
+		class="num-btn"
+		on:click={() =>
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '2' : 2)}>2</button
+	>
+	<button
+		class="num-btn"
+		on:click={() =>
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '3' : 3)}>3</button
+	>
+	<button class="op-btn" on:click={() => dispatch('inputChar', '+')} disabled={!isCraftingPhase}
+		>+</button
+	>
 
 	<!-- Row 5 -->
-	<button class="num-btn zero-btn" on:click={() => dispatch('inputChar', '0')}>0</button>
-	<button class="action-btn backspace-btn wide-btn" on:click={() => dispatch('backspace')}>
+	<button
+		class="num-btn zero-btn"
+		on:click={() =>
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '0' : 0)}>0</button
+	>
+	<button
+		class="action-btn backspace-btn wide-btn"
+		on:click={() => dispatch(isCraftingPhase ? 'backspace' : 'backspaceAnswer')}
+	>
 		UNDO
 	</button>
 

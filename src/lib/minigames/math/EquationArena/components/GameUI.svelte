@@ -49,6 +49,23 @@
 	export let activeBonuses: BonusConfig[] = [];
 	export let evaluationError: string | null = null;
 
+	// --- Helper Function for Spacing ---
+	function formatEquationSpacing(eq: string, placeholder: string = '_'): string {
+		if (!eq) return eq; // Handle null/empty strings
+		// Temporarily replace placeholder to avoid spacing issues around it
+		const placeholderToken = '@@PLACEHOLDER@@';
+		let tempEq = eq.replace(placeholder, placeholderToken);
+
+		// Add spaces around +, -, ×, ÷, =
+		let formatted = tempEq.replace(/([+\\-×÷=])/g, ' $1 '); // Note: escaped hyphen
+		// Collapse multiple spaces into one and trim
+		formatted = formatted.replace(/\\s+/g, ' ').trim();
+
+		// Restore placeholder
+		formatted = formatted.replace(placeholderToken, placeholder);
+		return formatted;
+	}
+
 	// --- Event Handlers ---
 
 	// Spell Selection
@@ -149,15 +166,28 @@
 		class:correct={lastAnswerCorrect === true && gameStatus === GameStatus.RESULT}
 		class:incorrect={lastAnswerCorrect === false && gameStatus === GameStatus.RESULT}
 		class:eval-error={!!evaluationError && gameStatus === GameStatus.RESULT}
+		class:status-solving={gameStatus === GameStatus.SOLVING}
+		class:status-result={gameStatus === GameStatus.RESULT}
+		class:status-pregame={gameStatus === GameStatus.PRE_GAME}
 	>
 		{#if gameMode === 'solver'}
 			{#if gameStatus === GameStatus.SOLVING}
 				<!-- Equation text -->
-				<span class="equation-text">{currentEquation.replace('?', playerInput + '_')}</span>
+				<span class="equation-text"
+					>{formatEquationSpacing(
+						currentEquation.replace('?', playerInput + '_'),
+						playerInput + '_'
+					)}</span
+				>
 			{:else if gameStatus === GameStatus.RESULT}
 				<!-- Result equation -->
 				<div class="result-equation">
-					<span class="equation-content">{lastFullEquation.replace('?', lastPlayerInput)}</span>
+					<span class="equation-content"
+						>{formatEquationSpacing(
+							lastFullEquation.replace('?', lastPlayerInput),
+							lastPlayerInput
+						)}</span
+					>
 				</div>
 			{:else}
 				<span class="info-text">Loading...</span>
@@ -166,10 +196,17 @@
 			{#if gameStatus === GameStatus.SOLVING}
 				{#if isCraftingPhase}
 					<!-- Show equation being crafted -->
-					<span class="equation-text">{craftedEquationString || '_'}</span>
+					<span class="equation-text"
+						>{formatEquationSpacing(craftedEquationString || '_', '_')}</span
+					>
 				{:else}
 					<!-- Show crafted equation for solving -->
-					<span class="equation-text">{craftedEquationString.trim()} = {playerInput + '_'}</span>
+					<span class="equation-text"
+						>{formatEquationSpacing(
+							`${craftedEquationString.trim()} = ${playerInput}_`,
+							playerInput + '_'
+						)}</span
+					>
 				{/if}
 			{:else if gameStatus === GameStatus.RESULT}
 				<div class="result-equation">
@@ -178,7 +215,12 @@
 						<span class="error-text">{evaluationError}</span>
 					{:else}
 						<!-- Show solved equation -->
-						<span class="equation-content">{lastFullEquation.replace('?', lastPlayerInput)}</span>
+						<span class="equation-content"
+							>{formatEquationSpacing(
+								lastFullEquation.replace('?', lastPlayerInput),
+								lastPlayerInput
+							)}</span
+						>
 					{/if}
 				</div>
 			{:else}
@@ -212,6 +254,9 @@
 				on:backspace={handleCrafterBackspace}
 				on:submitEquation={handleSubmitEquation}
 				on:castSpell={handleCastSpell}
+				on:inputNumber={handleAnswerInput}
+				on:backspaceAnswer={handleAnswerBackspace}
+				on:clearAnswer={handleClearAnswerInput}
 			/>
 		{/if}
 	</div>
@@ -595,5 +640,12 @@
 		font-size: 1.2rem; /* Slightly smaller */
 		color: #c0392b; /* Darker red */
 		font-weight: bold;
+	}
+
+	/* Add rule to reserve space for the underscore in the result state */
+	.equation-display.status-result .result-equation .equation-content::after {
+		content: '\_'; /* Add the underscore */
+		visibility: hidden; /* Make it invisible */
+		margin-left: 2px; /* Approximate spacing */
 	}
 </style>
