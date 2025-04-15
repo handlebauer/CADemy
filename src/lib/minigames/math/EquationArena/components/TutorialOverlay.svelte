@@ -112,14 +112,3 @@
 		}
 	});
 </script>
-
-<!-- This component doesn't need a template anymore as driver.js creates its own UI -->
-
-<style>
-	@keyframes pop-in {
-		to {
-			opacity: 1;
-			transform: scale(1);
-		}
-	}
-</style>
