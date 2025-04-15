@@ -22,8 +22,10 @@
 <div class="crafter-numpad">
 	<!-- Row 1 -->
 	<button class="action-btn clear-btn" on:click={() => dispatch('clear')}>C</button>
-	<button class="op-btn special-btn" on:click={() => dispatch('inputChar', '(')}>(</button>
-	<button class="op-btn special-btn" on:click={() => dispatch('inputChar', ')')}>)</button>
+	<div class="paren-buttons">
+		<button class="op-btn special-btn" on:click={() => dispatch('inputChar', '(')}>(</button>
+		<button class="op-btn special-btn" on:click={() => dispatch('inputChar', ')')}>)</button>
+	</div>
 	<button class="op-btn" on:click={() => dispatch('inputChar', '÷')}>÷</button>
 
 	<!-- Row 2 -->
@@ -73,6 +75,16 @@
 		gap: 0.75rem; /* Adjust gap as needed */
 		width: 90%;
 		max-width: 380px; /* Adjust width slightly */
+	}
+
+	/* --- Parentheses Wrapper Style --- */
+	.paren-buttons {
+		grid-column: span 2; /* Make the wrapper span 2 columns */
+		display: flex;
+		gap: 0.75rem; /* Maintain gap between paren buttons */
+	}
+	.paren-buttons button {
+		flex: 1; /* Make buttons fill the wrapper space */
 	}
 
 	/* General button style (kept from previous reversion) */

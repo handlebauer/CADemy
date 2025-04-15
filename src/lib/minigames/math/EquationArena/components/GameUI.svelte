@@ -143,6 +143,7 @@
 
 	<!-- Equation Display -->
 	<div
+		id="equation-display"
 		class="equation-display"
 		class:correct={lastAnswerCorrect === true && gameStatus === GameStatus.RESULT}
 		class:incorrect={lastAnswerCorrect === false && gameStatus === GameStatus.RESULT}
@@ -180,7 +181,7 @@
 					{/if}
 				</div>
 			{:else}
-				<span class="info-text">Loading...</span>
+				<span class="info-text">1 + 1 = 2</span>
 			{/if}
 		{:else}
 			<!-- Fallback if mode is null -->

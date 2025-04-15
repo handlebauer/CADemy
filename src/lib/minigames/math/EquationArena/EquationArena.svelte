@@ -485,7 +485,6 @@
 	class:player-hit={playerHit}
 	class:shield-hit={shieldHit}
 	bind:this={arenaContainerElement}
-	class:tutorial-active={$arenaStore.tutorialStep > 0}
 >
 	<!-- Tweakpane container -->
 	{#if import.meta.env.DEV}
@@ -579,6 +578,5 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		transition: filter 0.3s ease;
 	}
 </style>

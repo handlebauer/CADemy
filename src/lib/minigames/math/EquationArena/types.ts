@@ -6,6 +6,7 @@ export enum GameStatus {
 	SOLVING = 'SOLVING',
 	CASTING = 'CASTING',
 	RESULT = 'RESULT',
+	TUTORIAL = 'TUTORIAL',
 	GAME_OVER = 'GAME_OVER'
 }
 

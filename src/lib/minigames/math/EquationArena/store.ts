@@ -277,7 +277,7 @@ function createArenaStore() {
 						const startTutorial = state.needsCrafterTutorial;
 						return {
 							...(baseStartState as ArenaState),
-							gameStatus: GameStatus.SOLVING,
+							gameStatus: startTutorial ? GameStatus.TUTORIAL : GameStatus.SOLVING, // Use TUTORIAL status
 							tutorialStep: startTutorial ? 1 : 0,
 							isCraftingPhase: true,
 							craftedEquationString: ''
@@ -630,10 +630,16 @@ function createArenaStore() {
 					return state;
 				}
 
+				console.log({ gameMode: state.gameMode, tutorialStep: state.tutorialStep });
 				const nextStep = state.tutorialStep + 1;
 				if (nextStep > 3) {
-					// Tutorial finished, mark as complete
-					const newState = { ...state, tutorialStep: 0, needsCrafterTutorial: false };
+					// Tutorial finished, mark as complete and change status to SOLVING
+					const newState = {
+						...state,
+						tutorialStep: 0,
+						needsCrafterTutorial: false,
+						gameStatus: GameStatus.SOLVING // Start the game!
+					};
 					return newState;
 				} else {
 					// Advance to the next step
