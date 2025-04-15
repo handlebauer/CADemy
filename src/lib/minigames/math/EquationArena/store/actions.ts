@@ -1,11 +1,7 @@
 import { getCrafterLevelConfig } from '../config/crafterLevels';
-import {
-	// FIRE_DAMAGE, // No longer used directly here
-	grades,
-	enemies
-	// WRONG_ANSWER_HEALTH_PENALTY, // No longer used directly here
-} from '../config/index';
+import { grades, enemies } from '../config/index';
 import { evaluateEquation } from '../utils/math';
+import { evaluate } from 'mathjs';
 import { getActiveBonuses } from '../config/bonusLogic';
 
 import { initialArenaState, type ArenaState } from './index';
@@ -410,7 +406,12 @@ export function createGameplayActions(
 				// Call the passed-in helper function
 				return prepareNextRoundInternal(state);
 			}),
-		castSpell: (wrongAnswerTolerance: number, wrongAnswerPenalty: number, fireDamage: number) =>
+		castSpell: (
+			wrongAnswerTolerance: number,
+			wrongAnswerPenalty: number,
+			fireDamage: number,
+			crafterFeedbackDuration: number
+		) =>
 			update((state): ArenaState => {
 				if (
 					state.gameStatus !== GameStatus.SOLVING ||
@@ -427,6 +428,11 @@ export function createGameplayActions(
 				let evaluationErrorMessage: string | null = null;
 				let equationToEvaluate = '';
 				let expected: number | null = null;
+				let evaluationResult: { value: number | null; error: string | null; steps: string[] } = {
+					value: null,
+					error: null,
+					steps: []
+				};
 
 				const currentInput = state.playerInput;
 				let fullEquation = '';
@@ -438,7 +444,7 @@ export function createGameplayActions(
 					fullEquation = state.currentEquation.replace('?', currentInput);
 				} else if (state.gameMode === 'crafter') {
 					equationToEvaluate = state.craftedEquationString;
-					const evaluationResult = evaluateEquation(equationToEvaluate);
+					evaluationResult = evaluateEquation(equationToEvaluate, state.currentLevelNumber);
 					if (evaluationResult.error) {
 						evaluationErrorMessage = evaluationResult.error;
 						answerIsCorrect = false;
@@ -452,6 +458,27 @@ export function createGameplayActions(
 
 				const initialStateForCast = { ...state };
 				const intermediateState = { ...initialStateForCast };
+
+				// --- Recalculate answerIsCorrect specifically for crafter mode with potential fraction input ---
+				if (state.gameMode === 'crafter') {
+					let playerAnswerValue: number | null = null;
+					try {
+						const sanitizedPlayerInput = state.playerInput.replace(/×/g, '*').replace(/÷/g, '/');
+						const evaluatedPlayerInput = evaluate(sanitizedPlayerInput);
+						if (typeof evaluatedPlayerInput === 'number' && Number.isFinite(evaluatedPlayerInput)) {
+							playerAnswerValue = evaluatedPlayerInput;
+						}
+					} catch (error) {
+						console.error('Error evaluating player input:', error);
+					}
+
+					const tolerance = 1e-9; // Tolerance for float comparison
+					answerIsCorrect =
+						expected !== null &&
+						playerAnswerValue !== null &&
+						Math.abs(playerAnswerValue - expected) < tolerance;
+				}
+				// --- End Recalculation ---
 
 				if (answerIsCorrect) {
 					intermediateState.equationsSolvedCorrectly += 1;
@@ -484,10 +511,6 @@ export function createGameplayActions(
 						intermediateState.enemyHealth = newHealth;
 						if (newHealth <= 0) {
 							intermediateState.enemyJustDefeated = true; // Set flag ONLY
-							// DO NOT set game over here - let the component handle the delay
-							// intermediateState.gameStatus = GameStatus.GAME_OVER;
-							// intermediateState.resultMessage = 'Victory!';
-							// setTimeout(() => setGameOver('Victory!'), 0); // REMOVED
 						}
 					} else if (initialStateForCast.selectedSpell === 'ICE') {
 						intermediateState.isShieldActive = true;
@@ -496,6 +519,54 @@ export function createGameplayActions(
 					// Incorrect answer
 					currentActiveBonuses = []; // Reset bonuses
 					intermediateState.consecutiveWrongAnswers += 1; // Increment counter
+
+					// ---> CHANGE: Apply feedback logic for level 1, 2 or 3 <---
+					if (
+						intermediateState.gameMode === 'crafter' &&
+						(intermediateState.currentLevelNumber === 1 ||
+							intermediateState.currentLevelNumber === 2 ||
+							intermediateState.currentLevelNumber === 3) && // Include level 3
+						!evaluationResult.error
+					) {
+						const correctValue = expected; // Expected numeric value
+						intermediateState.crafterFeedbackDetails = {
+							incorrectEq: intermediateState.craftedEquationString,
+							incorrectVal: currentInput,
+							correctVal: correctValue,
+							steps: evaluationResult.steps
+						};
+						intermediateState.showCrafterFeedback = true;
+
+						// Clear previous timeout if any
+						if (intermediateState.crafterFeedbackTimeoutId) {
+							clearTimeout(intermediateState.crafterFeedbackTimeoutId);
+						}
+
+						// Set timeout to hide feedback
+						intermediateState.crafterFeedbackTimeoutId = setTimeout(() => {
+							update((s) => {
+								// Check if feedback is still relevant before clearing
+								if (
+									s.showCrafterFeedback &&
+									s.crafterFeedbackDetails?.incorrectEq ===
+										intermediateState.crafterFeedbackDetails?.incorrectEq &&
+									s.currentLevelNumber === intermediateState.currentLevelNumber
+								) {
+									return { ...s, showCrafterFeedback: false, crafterFeedbackTimeoutId: null };
+								}
+								return s;
+							});
+						}, crafterFeedbackDuration);
+					} else {
+						// Clear feedback if not level 1, 2 or 3 incorrect crafter
+						intermediateState.showCrafterFeedback = false;
+						intermediateState.crafterFeedbackDetails = null;
+						if (intermediateState.crafterFeedbackTimeoutId) {
+							clearTimeout(intermediateState.crafterFeedbackTimeoutId);
+							intermediateState.crafterFeedbackTimeoutId = null;
+						}
+					}
+					// ---> END CHANGE <---
 
 					// Apply health penalty if tolerance exceeded
 					if (intermediateState.consecutiveWrongAnswers > wrongAnswerTolerance) {
@@ -525,7 +596,11 @@ export function createGameplayActions(
 					activeBonuses: currentActiveBonuses,
 					evaluationError: evaluationErrorMessage,
 					// Clear input ONLY if enemy wasn't just defeated (allow seeing final input during animation)
-					playerInput: intermediateState.enemyJustDefeated ? currentInput : ''
+					playerInput: intermediateState.enemyJustDefeated ? currentInput : '',
+					// Pass feedback state through
+					showCrafterFeedback: intermediateState.showCrafterFeedback,
+					crafterFeedbackDetails: intermediateState.crafterFeedbackDetails,
+					crafterFeedbackTimeoutId: intermediateState.crafterFeedbackTimeoutId
 				};
 
 				return finalState;

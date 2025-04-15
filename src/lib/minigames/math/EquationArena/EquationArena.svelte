@@ -8,6 +8,8 @@
 	import {
 		FIRE_DAMAGE,
 		RESULT_DISPLAY_DELAY,
+		INCORRECT_RESULT_DISPLAY_DELAY,
+		CRAFTER_FEEDBACK_DISPLAY_DURATION,
 		WRONG_ANSWER_HEALTH_PENALTY,
 		WRONG_ANSWER_PENALTY_TOLERANCE,
 		equationArenaTweakpaneBindings
@@ -33,7 +35,9 @@
 		RESULT_DISPLAY_DELAY,
 		FIRE_DAMAGE,
 		WRONG_ANSWER_HEALTH_PENALTY,
-		WRONG_ANSWER_PENALTY_TOLERANCE
+		WRONG_ANSWER_PENALTY_TOLERANCE,
+		INCORRECT_RESULT_DISPLAY_DELAY,
+		CRAFTER_FEEDBACK_DISPLAY_DURATION
 	};
 
 	// --- Local Component State (Timers, Intervals) ---
@@ -130,7 +134,8 @@
 		arenaStore.castSpell(
 			globalConfig.WRONG_ANSWER_PENALTY_TOLERANCE,
 			globalConfig.WRONG_ANSWER_HEALTH_PENALTY,
-			globalConfig.FIRE_DAMAGE
+			globalConfig.FIRE_DAMAGE,
+			globalConfig.CRAFTER_FEEDBACK_DISPLAY_DURATION
 		);
 	}
 
@@ -203,7 +208,8 @@
 					arenaStore.castSpell(
 						globalConfig.WRONG_ANSWER_PENALTY_TOLERANCE,
 						globalConfig.WRONG_ANSWER_HEALTH_PENALTY,
-						globalConfig.FIRE_DAMAGE
+						globalConfig.FIRE_DAMAGE,
+						globalConfig.CRAFTER_FEEDBACK_DISPLAY_DURATION
 					);
 				} else if (event.key === 'Backspace') {
 					arenaStore.handleBackspace();
@@ -245,7 +251,8 @@
 						arenaStore.castSpell(
 							globalConfig.WRONG_ANSWER_PENALTY_TOLERANCE,
 							globalConfig.WRONG_ANSWER_HEALTH_PENALTY,
-							globalConfig.FIRE_DAMAGE
+							globalConfig.FIRE_DAMAGE,
+							globalConfig.CRAFTER_FEEDBACK_DISPLAY_DURATION
 						);
 					} else if (event.key === 'Backspace') {
 						arenaStore.handleBackspace();
@@ -338,6 +345,10 @@
 
 		console.log('Triggering Next Round Sequence');
 
+		const delay = $arenaStore.lastAnswerCorrect
+			? globalConfig.RESULT_DISPLAY_DELAY
+			: globalConfig.INCORRECT_RESULT_DISPLAY_DELAY;
+
 		nextRoundTimeout = setTimeout(() => {
 			console.log('Next Round Timeout -> Preparing Next Round');
 			// Check status again before proceeding
@@ -345,7 +356,7 @@
 				arenaStore.prepareNextRound();
 			}
 			nextRoundTimeout = null;
-		}, globalConfig.RESULT_DISPLAY_DELAY); // Delay before starting next round
+		}, delay); // Use calculated delay
 	}
 
 	// --- Reactive Statements ---
@@ -547,6 +558,8 @@
 				{displayedDamage}
 				activeBonuses={activeBonusesForDisplay}
 				{crafterLevelDescription}
+				showCrafterFeedback={$arenaStore.showCrafterFeedback}
+				crafterFeedbackDetails={$arenaStore.crafterFeedbackDetails}
 				on:selectSpell={handleSelectSpellEvent}
 				on:handleInput={handleInputEvent}
 				on:clearInput={handleClearInputEvent}

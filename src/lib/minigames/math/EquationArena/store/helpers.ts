@@ -78,19 +78,29 @@ export const prepareNextRoundInternal = (state: ArenaState): ArenaState => {
 		lastFullEquation: '',
 		resultMessage: '',
 		activeBonuses: [],
-		evaluationError: null
+		evaluationError: null,
+		showCrafterFeedback: false,
+		crafterFeedbackDetails: null
 	};
+
+	if (state.crafterFeedbackTimeoutId) {
+		clearTimeout(state.crafterFeedbackTimeoutId);
+	}
+	const nextStateBase = {
+		...state,
+		...baseNextRoundState,
+		crafterFeedbackTimeoutId: null
+	};
+
 	switch (state.gameMode) {
 		case 'solver':
 			return {
-				...(state as ArenaState),
-				...baseNextRoundState,
+				...nextStateBase,
 				...generateSolverEquation(state.currentLevelNumber)
 			};
 		case 'crafter': {
 			return {
-				...(state as ArenaState),
-				...baseNextRoundState,
+				...nextStateBase,
 				gameStatus: GameStatus.SOLVING,
 				isCraftingPhase: true,
 				craftedEquationString: '',
@@ -99,6 +109,6 @@ export const prepareNextRoundInternal = (state: ArenaState): ArenaState => {
 		}
 		default:
 			console.error('Unknown game mode in prepareNextRoundInternal');
-			return state;
+			return nextStateBase;
 	}
 };

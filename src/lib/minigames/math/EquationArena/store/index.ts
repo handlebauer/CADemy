@@ -47,6 +47,14 @@ export interface ArenaState {
 	isCraftedEquationValidForLevel: boolean;
 	enemyJustDefeated: boolean;
 	consecutiveWrongAnswers: number;
+	showCrafterFeedback: boolean;
+	crafterFeedbackDetails: {
+		incorrectEq: string;
+		incorrectVal: string;
+		correctVal: number | null;
+		steps: string[];
+	} | null;
+	crafterFeedbackTimeoutId: number | null;
 }
 
 export const initialArenaState: ArenaState = {
@@ -81,7 +89,10 @@ export const initialArenaState: ArenaState = {
 	allowedCrafterChars: null,
 	isCraftedEquationValidForLevel: false,
 	enemyJustDefeated: false,
-	consecutiveWrongAnswers: 0
+	consecutiveWrongAnswers: 0,
+	showCrafterFeedback: false,
+	crafterFeedbackDetails: null,
+	crafterFeedbackTimeoutId: null
 };
 
 // --- Store Creation Logic ---

@@ -54,6 +54,13 @@
 	export let allowedCrafterChars: string[] | null = null;
 	export let isCraftedEquationValidForLevel: boolean = true;
 	export let currentLevelNumber: number = 1;
+	export let showCrafterFeedback: boolean = false;
+	export let crafterFeedbackDetails: {
+		incorrectEq: string;
+		incorrectVal: string;
+		correctVal: number | null;
+		steps: string[];
+	} | null = null;
 
 	// --- Event Handlers ---
 	// Bubble up the selectSpell event from the child component
@@ -106,6 +113,19 @@
 		lastFullEquation.replace('?', lastPlayerInput) + '_',
 		currentLevelNumber
 	);
+
+	// ---> ADDITION: Parse feedback strings into segments <--- */
+	$: incorrectAttemptSegments = crafterFeedbackDetails
+		? parseEquationForDisplay(
+				`${crafterFeedbackDetails.incorrectEq} = ${crafterFeedbackDetails.incorrectVal}`,
+				currentLevelNumber // Pass level, though it might not affect spacing
+			)
+		: [];
+
+	$: correctSequenceSegments = crafterFeedbackDetails?.steps
+		? parseEquationForDisplay(crafterFeedbackDetails.steps.join(' = '), currentLevelNumber)
+		: [];
+	// ---> END ADDITION <--- */
 </script>
 
 <!-- Game UI Layout -->
@@ -130,27 +150,73 @@
 
 	<!-- Equation Display -->
 	<div
-		id="equation-display"
-		class="equation-display"
-		class:correct={lastAnswerCorrect === true && gameStatus === GameStatus.RESULT}
-		class:incorrect={lastAnswerCorrect === false && gameStatus === GameStatus.RESULT}
-		class:eval-error={!!evaluationError && gameStatus === GameStatus.RESULT}
+		id="equation-display-wrapper"
+		class="equation-display-wrapper"
 		class:status-solving={gameStatus === GameStatus.SOLVING}
 		class:status-result={gameStatus === GameStatus.RESULT}
 		class:status-pregame={gameStatus === GameStatus.PRE_GAME}
 	>
-		<EquationDisplay
-			{gameMode}
-			{gameStatus}
-			{isCraftingPhase}
-			{solverSolvingSegments}
-			{solverResultSegments}
-			{crafterCraftingSegments}
-			{crafterSolvingEqSegments}
-			{crafterSolvingInputSegments}
-			{crafterResultSegments}
-			{evaluationError}
-		/>
+		<div
+			class="equation-display"
+			class:correct={lastAnswerCorrect === true && gameStatus === GameStatus.RESULT}
+			class:incorrect={lastAnswerCorrect === false && gameStatus === GameStatus.RESULT}
+			class:eval-error={!!evaluationError && gameStatus === GameStatus.RESULT}
+		>
+			<EquationDisplay
+				{gameMode}
+				{gameStatus}
+				{isCraftingPhase}
+				{solverSolvingSegments}
+				{solverResultSegments}
+				{crafterCraftingSegments}
+				{crafterSolvingEqSegments}
+				{crafterSolvingInputSegments}
+				{crafterResultSegments}
+				{evaluationError}
+			/>
+		</div>
+
+		{#if showCrafterFeedback && crafterFeedbackDetails}
+			<div class="feedback-overlay">
+				<div class="feedback-content">
+					<div class="feedback-inner-box">
+						<p class="feedback-line incorrect-attempt">
+							{#each incorrectAttemptSegments as segment, i (i)}
+								{#if segment.type === 'fraction'}
+									<span class="segment segment-fraction">
+										<span class="fraction">
+											<span class="numerator">{segment.numerator}</span>
+											<span class="denominator">{segment.denominator}</span>
+										</span>
+									</span>
+								{:else}
+									<span class="segment segment-{segment.type}">{segment.value}</span>
+								{/if}
+							{/each}
+						</p>
+						<p class="should-be">should be</p>
+						{#if crafterFeedbackDetails.correctVal !== null}
+							<p class="feedback-line correct-eval">
+								{#each correctSequenceSegments as segment, i (i)}
+									{#if segment.type === 'fraction'}
+										<span class="segment segment-fraction">
+											<span class="fraction">
+												<span class="numerator">{segment.numerator}</span>
+												<span class="denominator">{segment.denominator}</span>
+											</span>
+										</span>
+									{:else}
+										<span class="segment segment-{segment.type}">{segment.value}</span>
+									{/if}
+								{/each}
+							</p>
+						{:else}
+							<p class="feedback-line error-eval">Couldn't evaluate your equation.</p>
+						{/if}
+					</div>
+				</div>
+			</div>
+		{/if}
 	</div>
 
 	<!-- Crafter Level Description -->
@@ -212,6 +278,13 @@
 		overflow-y: auto; /* Add vertical scroll if content overflows */
 	}
 
+	.equation-display-wrapper {
+		position: relative;
+		width: 350px;
+		height: 70px;
+		margin-bottom: 1.5rem;
+	}
+
 	.equation-display {
 		width: 350px;
 		height: 70px; /* Added fixed height */
@@ -229,7 +302,6 @@
 		transition:
 			background-color 0.3s ease,
 			border-color 0.3s ease;
-		margin-bottom: 1.5rem;
 		overflow: hidden;
 		white-space: nowrap; /* Prevent wrapping of equation */
 	}
@@ -289,5 +361,127 @@
 		margin-bottom: 1rem; /* Add space before numpad */
 		max-width: 350px;
 		text-align: center;
+	}
+
+	.feedback-overlay {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		width: 360px;
+		height: auto;
+		background-color: #f8d7da;
+		border: 2px solid #f5c6cb;
+		border-radius: 12px;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		padding: 0.5rem;
+		box-sizing: border-box;
+		z-index: 10;
+		animation: fadeIn 0.3s ease-out;
+		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+	}
+
+	.feedback-content {
+		text-align: center;
+		font-size: 1em;
+		color: #333;
+		width: 100%;
+	}
+
+	.feedback-inner-box {
+		background-color: #ffffff;
+		border-radius: 8px;
+		padding: 1.5rem 1.5rem;
+		margin: 0;
+		box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.05);
+	}
+
+	.feedback-line {
+		margin: 0.5rem 0;
+		font-size: 1.1em;
+		line-height: 1.3;
+	}
+
+	/* ---> ADDITION: Copied Segment Spacing Styles <--- */
+	/* Apply these within the feedback box context */
+	.feedback-inner-box .segment {
+		display: inline-flex;
+		align-items: center;
+		vertical-align: middle;
+		margin: 0; /* Base margin */
+		font-weight: bold; /* Apply bold to all segments */
+		font-family: monospace;
+	}
+
+	.feedback-inner-box .segment-operator {
+		margin: 0 0.2em; /* Space around operators */
+	}
+
+	.feedback-inner-box .segment-paren_open {
+		margin-left: 0.1em;
+		margin-right: 0.05em;
+	}
+
+	.feedback-inner-box .segment-paren_close {
+		margin-left: 0.05em;
+		margin-right: 0.1em;
+	}
+	/* ---> END ADDITION <--- */
+
+	/* ---> ADDITION: Fraction Styling (scoped) <--- */
+	.feedback-inner-box .segment-fraction {
+		margin: 0 0.1em;
+	}
+	.feedback-inner-box .fraction {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		vertical-align: middle;
+		margin: 0 0.1em;
+		line-height: 1;
+	}
+	.feedback-inner-box .numerator {
+		font-size: 0.8em;
+		line-height: 1;
+		padding-bottom: 0.1em;
+	}
+	.feedback-inner-box .denominator {
+		font-size: 0.8em;
+		line-height: 1;
+		border-top: 1.5px solid currentColor;
+		padding-top: 0.1em;
+	}
+	/* ---> END ADDITION <--- */
+
+	/* Style the specific lines */
+	.incorrect-attempt .segment {
+		color: #dc3545; /* Red for incorrect attempt */
+	}
+
+	.correct-eval .segment {
+		color: #000000; /* Black for correct sequence */
+	}
+
+	.feedback-tip {
+		margin-top: 0.4rem;
+	}
+
+	@keyframes fadeIn {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+
+	.should-be {
+		margin: 1rem 0;
+		font-style: italic;
+		font-weight: bold;
+		color: #dc3545;
 	}
 </style>
