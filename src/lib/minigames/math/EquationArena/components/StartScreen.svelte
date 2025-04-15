@@ -1,15 +1,11 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import type { GameMode, GradeLevel } from '../types';
+	import type { GradeLevel } from '../types';
 
 	const dispatch = createEventDispatcher<{ startGame: void }>();
 
 	// Props passed from the parent (EquationArena.svelte)
 	export let selectedGrade: GradeLevel | null = null;
-	export let gameMode: GameMode | null = null;
-
-	// Capitalize game mode for display
-	$: displayMode = gameMode ? gameMode.charAt(0).toUpperCase() + gameMode.slice(1) : 'N/A';
 
 	function handleStart() {
 		dispatch('startGame');
@@ -22,10 +18,9 @@
 		Solve equations to defeat the enemy!
 	</p>
 
-	{#if selectedGrade && gameMode}
+	{#if selectedGrade}
 		<div class="mode-info animate-fade-in-staggered delay-2a">
 			<span>Grade: <strong>{selectedGrade}</strong></span>
-			<span>Mode: <strong>{displayMode}</strong></span>
 		</div>
 	{/if}
 

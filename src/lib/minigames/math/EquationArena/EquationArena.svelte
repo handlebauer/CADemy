@@ -125,6 +125,7 @@
 		minigameStore.closeActiveMinigame();
 	}
 	function handleNextLevelEvent() {
+		console.log('got here');
 		arenaStore.advanceLevelAndStart();
 	}
 	function handleTryAgainEvent() {
@@ -502,11 +503,7 @@
 		{#if !$arenaStore.selectedGrade}
 			<GradeSelectionScreen on:selectGrade={handleGradeSelected} />
 		{:else if $arenaStore.gameStatus === GameStatus.PRE_GAME}
-			<StartScreen
-				selectedGrade={$arenaStore.selectedGrade}
-				gameMode={$arenaStore.gameMode}
-				on:startGame={handleStartGame}
-			/>
+			<StartScreen selectedGrade={$arenaStore.selectedGrade} on:startGame={handleStartGame} />
 		{:else if $arenaStore.gameStatus !== GameStatus.GAME_OVER}
 			<GameUI
 				{...$arenaStore}
@@ -531,7 +528,6 @@
 				equationsSolvedCorrectly={$arenaStore.equationsSolvedCorrectly}
 				{formattedTimeTaken}
 				selectedGrade={$arenaStore.selectedGrade}
-				gameMode={$arenaStore.gameMode}
 				handleExit={handleExitGameEvent}
 				handleNextLevel={handleNextLevelEvent}
 				handleTryAgain={handleTryAgainEvent}

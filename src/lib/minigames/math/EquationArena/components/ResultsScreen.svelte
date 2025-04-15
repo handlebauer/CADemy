@@ -1,14 +1,10 @@
 <script lang="ts">
-	// import { createEventDispatcher } from 'svelte'; // Removed
-	import type { GradeLevel, GameMode } from '../types';
-
-	// const dispatch = createEventDispatcher(); // Removed
+	import type { GradeLevel } from '../types';
 
 	export let playerHealth: number;
 	export let equationsSolvedCorrectly: number;
 	export let formattedTimeTaken: string;
 	export let selectedGrade: GradeLevel | null;
-	export let gameMode: GameMode | null;
 
 	export function handleExit() {
 		// Logic can remain here, or be moved to the parent
@@ -44,7 +40,6 @@
 		<p>Equations Solved: {equationsSolvedCorrectly}</p>
 		<p>Time Taken: {formattedTimeTaken}</p>
 		{#if selectedGrade}<p>Grade: {selectedGrade}</p>{/if}
-		{#if gameMode}<p>Mode: {gameMode}</p>{/if}
 		<!-- Add other stats here later -->
 	</div>
 	<div class="results-feedback-prompt">

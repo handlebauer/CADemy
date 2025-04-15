@@ -5,6 +5,7 @@
 		"health": 100,
 		"attackInterval": 10000,
 		"damage": 10,
+		"icon": "🐉",
 		"mode": "solver",
 		"level": 1
 	},
@@ -14,6 +15,7 @@
 		"health": 75,
 		"attackInterval": 9000,
 		"damage": 15,
+		"icon": "👁️",
 		"mode": "crafter",
 		"level": 1
 	},
@@ -23,6 +25,7 @@
 		"health": 90,
 		"attackInterval": 8000,
 		"damage": 18,
+		"icon": "🧩",
 		"mode": "crafter",
 		"level": 2
 	},
@@ -32,6 +35,7 @@
 		"health": 100,
 		"attackInterval": 7000,
 		"damage": 20,
+		"icon": "💠",
 		"mode": "crafter",
 		"level": 3
 	}

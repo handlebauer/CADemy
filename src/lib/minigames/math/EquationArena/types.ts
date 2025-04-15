@@ -34,6 +34,7 @@ export interface EnemyConfig {
 	attackInterval: number;
 	damage: number;
 	sprite?: string; // Optional sprite path
+	icon: string; // Add icon property
 	mode: GameMode;
 	level: number;
 }

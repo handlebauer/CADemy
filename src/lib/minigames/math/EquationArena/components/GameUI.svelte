@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import type { GameMode, BonusConfig, SpellType } from '../types';
+	import type { GameMode, BonusConfig, SpellType, EnemyConfig } from '../types';
 	import { GameStatus } from '../types';
 
 	// Import the numpad components
@@ -26,7 +26,7 @@
 	export let gameStatus: GameStatus;
 	export let playerHealth: number;
 	export let enemyHealth: number;
-	export let enemyName: string = 'Enemy';
+	export let currentEnemyConfig: EnemyConfig | null = null;
 	export let isShieldActive: boolean;
 	export let formattedTime: string;
 	export let gameTime: number;
@@ -109,11 +109,12 @@
 	<div class="enemy-area">
 		<!-- Direct children for enemy display -->
 		<div class="enemy-icon" class:hit-reaction={enemyHit} class:defeated={enemyDefeatedAnimating}>
-			🐉
+			{currentEnemyConfig?.icon || '🐉'}
 		</div>
-		<div class="enemy-label">{enemyName}</div>
-		<progress class="enemy-health-bar" max="100" value={enemyHealth}></progress>
-		<div class="enemy-health-text">{enemyHealth}/100</div>
+		<div class="enemy-label">{currentEnemyConfig?.name || 'Enemy'}</div>
+		<progress class="enemy-health-bar" max={currentEnemyConfig?.health || 100} value={enemyHealth}
+		></progress>
+		<div class="enemy-health-text">{enemyHealth}/{currentEnemyConfig?.health || 100}</div>
 		<!-- Damage & Bonus Display Area -->
 		<div class="feedback-overlay">
 			{#if displayedDamage !== null && lastAnswerCorrect}
