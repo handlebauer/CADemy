@@ -83,11 +83,9 @@
 		enemyHitTimeout = null;
 		shieldHitTimeout = null;
 
-		// Reset relevant UI state? Careful not to interfere with results screen
-		// playerHit = false;
-		// enemyHit = false;
-		// shieldHit = false;
-		// gameStarted = false; // Reset gameStarted flag when timers stop
+		playerHit = false;
+		enemyHit = false;
+		shieldHit = false;
 	}
 
 	// --- Handler Functions for Child Component Events ---
@@ -129,7 +127,11 @@
 	}
 	// General Action
 	function handleCastSpellEvent() {
-		arenaStore.castSpell();
+		arenaStore.castSpell(
+			globalConfig.WRONG_ANSWER_PENALTY_TOLERANCE,
+			globalConfig.WRONG_ANSWER_HEALTH_PENALTY,
+			globalConfig.FIRE_DAMAGE
+		);
 	}
 
 	// --- ResultsScreen Event Handlers ---
@@ -141,6 +143,8 @@
 		arenaStore.advanceLevelAndStart();
 	}
 	function handleTryAgainEvent() {
+		// Explicitly clear the hit effect when trying again
+		playerHit = false;
 		// Reset to grade selection? Or just restart level 1 of the current grade?
 		// For now, let's restart level 1 of the current grade/mode.
 		arenaStore.startGame();
@@ -196,7 +200,11 @@
 				if (event.key >= '0' && event.key <= '9') {
 					arenaStore.handleInput(parseInt(event.key, 10));
 				} else if (event.key === 'Enter') {
-					arenaStore.castSpell();
+					arenaStore.castSpell(
+						globalConfig.WRONG_ANSWER_PENALTY_TOLERANCE,
+						globalConfig.WRONG_ANSWER_HEALTH_PENALTY,
+						globalConfig.FIRE_DAMAGE
+					);
 				} else if (event.key === 'Backspace') {
 					arenaStore.handleBackspace();
 				} else if (event.key === 'c' || event.key === 'C' || event.key === 'Escape') {
@@ -234,7 +242,11 @@
 						// Allow / input only during answer phase (validation happens in store)
 						arenaStore.handleInput('/');
 					} else if (event.key === 'Enter') {
-						arenaStore.castSpell();
+						arenaStore.castSpell(
+							globalConfig.WRONG_ANSWER_PENALTY_TOLERANCE,
+							globalConfig.WRONG_ANSWER_HEALTH_PENALTY,
+							globalConfig.FIRE_DAMAGE
+						);
 					} else if (event.key === 'Backspace') {
 						arenaStore.handleBackspace();
 					} else if (event.key === 'c' || event.key === 'C' || event.key === 'Escape') {
@@ -510,7 +522,8 @@
 <!-- Main Template -->
 <div
 	class="arena-wrapper"
-	class:player-hit={playerHit}
+	class:player-hit={playerHit ||
+		($arenaStore.gameStatus === GameStatus.GAME_OVER && $arenaStore.playerHealth <= 0)}
 	class:shield-hit={shieldHit}
 	bind:this={arenaContainerElement}
 >

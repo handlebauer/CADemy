@@ -1,10 +1,9 @@
 import { getCrafterLevelConfig } from '../config/crafterLevels';
 import {
-	FIRE_DAMAGE,
+	// FIRE_DAMAGE, // No longer used directly here
 	grades,
-	enemies,
-	WRONG_ANSWER_HEALTH_PENALTY,
-	WRONG_ANSWER_PENALTY_TOLERANCE
+	enemies
+	// WRONG_ANSWER_HEALTH_PENALTY, // No longer used directly here
 } from '../config/index';
 import { evaluateEquation } from '../utils/math';
 import { getActiveBonuses } from '../config/bonusLogic';
@@ -411,7 +410,7 @@ export function createGameplayActions(
 				// Call the passed-in helper function
 				return prepareNextRoundInternal(state);
 			}),
-		castSpell: () =>
+		castSpell: (wrongAnswerTolerance: number, wrongAnswerPenalty: number, fireDamage: number) =>
 			update((state): ArenaState => {
 				if (
 					state.gameStatus !== GameStatus.SOLVING ||
@@ -476,7 +475,7 @@ export function createGameplayActions(
 					// --- End Bonus Calculation ---
 
 					if (initialStateForCast.selectedSpell === 'FIRE') {
-						calculatedDamage = FIRE_DAMAGE;
+						calculatedDamage = fireDamage; // Use passed-in fireDamage
 						currentActiveBonuses.forEach((bonus) => {
 							calculatedDamage *= bonus.powerMultiplier;
 						});
@@ -499,10 +498,10 @@ export function createGameplayActions(
 					intermediateState.consecutiveWrongAnswers += 1; // Increment counter
 
 					// Apply health penalty if tolerance exceeded
-					if (intermediateState.consecutiveWrongAnswers > WRONG_ANSWER_PENALTY_TOLERANCE) {
+					if (intermediateState.consecutiveWrongAnswers > wrongAnswerTolerance) {
 						const newPlayerHealth = Math.max(
 							0,
-							intermediateState.playerHealth - WRONG_ANSWER_HEALTH_PENALTY
+							intermediateState.playerHealth - wrongAnswerPenalty
 						);
 						intermediateState.playerHealth = newPlayerHealth;
 						if (newPlayerHealth <= 0) {
