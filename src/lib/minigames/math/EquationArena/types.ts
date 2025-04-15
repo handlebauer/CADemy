@@ -64,3 +64,10 @@ export interface DisplaySegment {
 	numerator?: string; // For fractions
 	denominator?: string; // For fractions
 }
+
+export interface CrafterLevelConfig {
+	level: number;
+	allowedChars: string[];
+	validate: (equation: string) => boolean;
+	description: string; // Short description of the level's goal
+}

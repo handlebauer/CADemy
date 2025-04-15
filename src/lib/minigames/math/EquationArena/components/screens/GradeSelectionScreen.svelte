@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import type { GradeLevel } from '../types';
-	import { grades } from '../config';
+	import type { GradeLevel } from '../../types';
+	import { grades } from '../../config';
 
 	const dispatch = createEventDispatcher<{ selectGrade: GradeLevel }>();
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import { GameStatus } from '../types';
+	import { GameStatus } from '../../types';
 
 	// Define dispatched events and their payloads
 	const dispatch = createEventDispatcher<{

@@ -6,16 +6,20 @@
 	import { setupTweakpane, type TweakpaneBindingParams } from '$lib/utils/tweakpane';
 
 	import { FIRE_DAMAGE, RESULT_DISPLAY_DELAY, equationArenaTweakpaneBindings } from './config';
+	import { getCrafterLevelConfig } from './config/crafterLevels';
 
 	import { arenaStore, type ArenaState } from './store';
 	import { GameStatus, type SpellType, type GradeLevel, type BonusConfig } from './types';
 
 	import './animations.css';
 
-	import GradeSelectionScreen from './components/GradeSelectionScreen.svelte';
-	import StartScreen from './components/StartScreen.svelte';
+	// Import screen components from new location
+	import GradeSelectionScreen from './components/screens/GradeSelectionScreen.svelte';
+	import StartScreen from './components/screens/StartScreen.svelte';
+	import ResultsScreen from './components/screens/ResultsScreen.svelte';
+
+	// Import orchestrator and overlay
 	import GameUI from './components/GameUI.svelte';
-	import ResultsScreen from './components/ResultsScreen.svelte';
 	import TutorialOverlay from './components/TutorialOverlay.svelte';
 
 	// --- Config Variables (local reactive state) ---
@@ -240,24 +244,26 @@
 	}
 
 	// --- Sequence Handler Functions ---
-	function handleEnemyDefeatSequence() {
+	// New sequence handler specifically for victory
+	function handleEnemyVictorySequence() {
 		// Prevent re-triggering if timeout already active or game already over
 		if (enemyDefeatedTimeout || $arenaStore.gameStatus === GameStatus.GAME_OVER) return;
 
-		console.log('Triggering Enemy Defeat Sequence');
-		stopGameTimers(); // Stop all game timers on victory
+		console.log('Triggering Enemy Victory Sequence');
+		stopGameTimers(); // Stop other game timers
 		enemyDefeatedAnimating = true;
 
+		// Set a timeout to allow animation to play before finalizing game over
 		enemyDefeatedTimeout = setTimeout(() => {
-			console.log('Enemy Defeat Timeout -> Setting Game Over');
-			// Double check status before setting game over
+			console.log('Enemy Victory Timeout -> Finalizing Victory');
+			// Double check status before setting game over (might have reset)
 			if ($arenaStore.gameStatus !== GameStatus.GAME_OVER) {
-				arenaStore.setGameOver('Victory!');
+				arenaStore.finalizeVictory();
 			}
-			// Animation flag might be controlled by GAME_OVER state instead
-			// enemyDefeatedAnimating = false;
 			enemyDefeatedTimeout = null;
-		}, 1000); // Delay before showing results screen
+			// Animation flag can reset automatically based on game status change
+			// or be explicitly reset if needed when ResultsScreen shows.
+		}, 1000); // Adjust delay as needed (e.g., match animation duration)
 	}
 
 	function handleDamageDisplaySequence() {
@@ -325,37 +331,6 @@
 	// --- Reactive Statements ---
 
 	$: {
-		// Main reactive block - Directly call sequence handlers or store actions
-		if ($arenaStore.currentEnemyConfig) {
-			// Check game over conditions
-			if ($arenaStore.playerHealth <= 0 && $arenaStore.gameStatus !== GameStatus.GAME_OVER) {
-				console.log('Reactive: Player Health <= 0 -> Setting Game Over');
-				stopGameTimers(); // Stop timers before setting game over
-				arenaStore.setGameOver('Defeat!');
-			} else if ($arenaStore.gameTime <= 0 && $arenaStore.gameStatus !== GameStatus.GAME_OVER) {
-				console.log('Reactive: Game Time <= 0 -> Setting Game Over');
-				stopGameTimers(); // Stop timers before setting game over
-				arenaStore.setGameOver('Time is up! Defeat!');
-			} else if ($arenaStore.enemyHealth <= 0 && $arenaStore.gameStatus !== GameStatus.GAME_OVER) {
-				console.log('Reactive: Enemy Health <= 0 -> Calling Defeat Sequence');
-				handleEnemyDefeatSequence();
-			}
-
-			// Handle RESULT state logic - Call sequence handlers
-			if ($arenaStore.gameStatus === GameStatus.RESULT) {
-				console.log('Reactive: Game Status == RESULT -> Calling Sequences');
-				handleDamageDisplaySequence(); // Checks conditions internally
-				handleNextRoundSequence(); // Checks conditions internally
-			}
-		} else {
-			// If enemy config disappears (e.g., game reset), ensure timers are stopped
-			// stopGameTimers(); // Might be redundant if called elsewhere
-		}
-	}
-
-	// Reactive statement to start timers when game enters SOLVING state
-	// And reset gameStarted flag when game ends/resets
-	$: {
 		if (
 			$arenaStore.gameStatus === GameStatus.SOLVING &&
 			!gameStarted &&
@@ -371,8 +346,32 @@
 				$arenaStore.gameStatus === GameStatus.PRE_GAME) &&
 			gameStarted // Only reset if it was previously true
 		) {
-			console.log('Reactive: Game Ended/Reset -> Resetting gameStarted');
+			console.log('Reactive: Game Ended/Reset -> Stopping Timers & Resetting gameStarted');
+			stopGameTimers(); // Stop timers when game ends or resets
 			gameStarted = false; // Reset for next game
+		}
+	}
+
+	// Modified reactive block to handle RESULT state and trigger victory sequence
+	$: {
+		if ($arenaStore.gameStatus === GameStatus.RESULT) {
+			if ($arenaStore.enemyJustDefeated) {
+				// Enemy defeated, trigger victory sequence
+				console.log(
+					'Reactive: Game Status == RESULT & enemyJustDefeated -> Calling Victory Sequence'
+				);
+				handleEnemyVictorySequence();
+			} else {
+				// Normal RESULT state, handle damage display and next round
+				console.log('Reactive: Game Status == RESULT -> Calling Normal Sequences');
+				handleDamageDisplaySequence(); // Checks conditions internally
+				handleNextRoundSequence(); // Checks conditions internally
+			}
+		} else if ($arenaStore.gameStatus !== GameStatus.GAME_OVER && enemyDefeatedAnimating) {
+			// Reset animation flag if game status changes away from GAME_OVER (e.g., reset)
+			// This might need refinement depending on when ResultsScreen takes over.
+			console.log('Reactive: Resetting enemyDefeatedAnimating flag');
+			enemyDefeatedAnimating = false;
 		}
 	}
 
@@ -492,6 +491,12 @@
 			? $arenaStore.startTime - $arenaStore.gameTime
 			: 0;
 	$: formattedTimeTaken = `${Math.floor(timeTakenSeconds / 60)}:${(timeTakenSeconds % 60).toString().padStart(2, '0')}`;
+
+	// Derive crafter level description
+	$: crafterLevelDescription =
+		$arenaStore.gameMode === 'crafter'
+			? getCrafterLevelConfig($arenaStore.currentLevelNumber)?.description
+			: null;
 </script>
 
 <!-- Main Template -->
@@ -520,6 +525,7 @@
 				{enemyDefeatedAnimating}
 				{displayedDamage}
 				activeBonuses={activeBonusesForDisplay}
+				{crafterLevelDescription}
 				on:selectSpell={handleSelectSpellEvent}
 				on:handleInput={handleInputEvent}
 				on:clearInput={handleClearInputEvent}

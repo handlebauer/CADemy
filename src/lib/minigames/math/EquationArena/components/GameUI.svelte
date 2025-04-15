@@ -3,12 +3,14 @@
 	import type { GameMode, BonusConfig, SpellType, EnemyConfig } from '../types';
 	import { GameStatus } from '../types';
 
-	// Import the new display parser
 	import { parseEquationForDisplay } from '../utils/display';
 
-	// Import the numpad components
-	import SolverNumpad from './SolverNumpad.svelte';
-	import CrafterNumpad from './CrafterNumpad.svelte';
+	import SolverNumpad from './input/SolverNumpad.svelte';
+	import CrafterNumpad from './input/CrafterNumpad.svelte';
+	import EnemyDisplay from './display/EnemyDisplay.svelte';
+	import EquationDisplay from './display/EquationDisplay.svelte';
+	import SpellSelection from './input/SpellSelection.svelte';
+	import TopBar from './display/TopBar.svelte';
 
 	// Update dispatcher types for new crafter events
 	const dispatch = createEventDispatcher<{
@@ -26,6 +28,7 @@
 		castSpell: void;
 	}>();
 
+	// --- Exported Props ---
 	export let gameStatus: GameStatus;
 	export let playerHealth: number;
 	export let enemyHealth: number;
@@ -43,32 +46,21 @@
 	export let lastFullEquation: string;
 	export let lastPlayerInput: string;
 	export let gameMode: GameMode | null = null;
-
-	// Crafter mode specific props
 	export let craftedEquationString: string = '';
 	export let isCraftingPhase: boolean = false;
-
-	// Add props for bonuses and errors
+	export let crafterLevelDescription: string | null = null;
 	export let activeBonuses: BonusConfig[] = [];
 	export let evaluationError: string | null = null;
-
-	// Add prop for allowed crafter chars from store
 	export let allowedCrafterChars: string[] | null = null;
-
-	// Add prop for crafted equation validation
 	export let isCraftedEquationValidForLevel: boolean = true;
-
-	// Add prop for current level number (needed for fraction display)
 	export let currentLevelNumber: number = 1;
 
 	// --- Event Handlers ---
-
-	// Spell Selection
-	function handleSelectSpell(spell: SpellType) {
-		dispatch('selectSpell', spell);
+	// Bubble up the selectSpell event from the child component
+	function handleSelectSpellEvent(event: CustomEvent<SpellType>) {
+		dispatch('selectSpell', event.detail);
 	}
-
-	// Solver/Answer Input
+	// Other handlers remain the same
 	function handleAnswerInput(event: CustomEvent<number>) {
 		dispatch('handleInput', event.detail);
 	}
@@ -78,8 +70,6 @@
 	function handleAnswerBackspace() {
 		dispatch('handleBackspace');
 	}
-
-	// Crafter Equation Input
 	function handleCrafterInputChar(event: CustomEvent<string>) {
 		dispatch('inputChar', event.detail);
 	}
@@ -92,13 +82,12 @@
 	function handleSubmitEquation() {
 		dispatch('submitEquation');
 	}
-
-	// General Action
 	function handleCastSpell() {
 		dispatch('castSpell');
 	}
 
-	// Reactive declaration to get segments - ensures recalculation when inputs change
+	// --- Reactive Segment Calculations ---
+	// (These still need to happen here as they depend on multiple props)
 	$: solverSolvingSegments = parseEquationForDisplay(
 		currentEquation.replace('?', playerInput + '_'),
 		currentLevelNumber
@@ -119,60 +108,25 @@
 	);
 </script>
 
-<!-- Game UI Markup will go here -->
+<!-- Game UI Layout -->
 <div class="equation-arena-container" class:shake={false} class:shake-shield={false}>
-	<!-- Remove playerHit and shieldHit from class list here, managed by parent wrapper -->
-	<!-- Top Bar -->
-	<div class="top-bar">
-		<div class="health-player">
-			<span>❤️</span>
-			<!-- Replace progress with divs -->
-			<div class="player-health-bar-container" class:shield-active={isShieldActive}>
-				<div class="player-health-bar-fill" style="width: {playerHealth}%;"></div>
-			</div>
-			<span class="player-health-value">{playerHealth}/100</span>
-		</div>
-		<div class="timer" class:low-time={gameTime > 0 && gameTime < 10}>
-			⏱️ {formattedTime.replace('Time: ', '')}
-		</div>
-	</div>
+	<!-- Use the new TopBar component -->
+	<TopBar {playerHealth} {isShieldActive} {gameTime} {formattedTime} />
 
-	<!-- Enemy Area -->
-	<div class="enemy-area">
-		<!-- Direct children for enemy display -->
-		<div class="enemy-icon" class:hit-reaction={enemyHit} class:defeated={enemyDefeatedAnimating}>
-			{currentEnemyConfig?.icon || '🐉'}
-		</div>
-		<div class="enemy-label">{currentEnemyConfig?.name || 'Enemy'}</div>
-		<progress class="enemy-health-bar" max={currentEnemyConfig?.health || 100} value={enemyHealth}
-		></progress>
-		<div class="enemy-health-text">{enemyHealth}/{currentEnemyConfig?.health || 100}</div>
-		<!-- Damage & Bonus Display Area -->
-		<div class="feedback-overlay">
-			{#if displayedDamage !== null && lastAnswerCorrect}
-				<span class="damage-dealt-text animate-damage">-{displayedDamage}</span>
-			{/if}
-			{#if gameStatus === GameStatus.RESULT && lastAnswerCorrect && activeBonuses.length > 0}
-				<div class="bonus-display animate-bonus">
-					{#each activeBonuses as bonus (bonus.id)}
-						<span>{bonus.name} (+{Math.round((bonus.powerMultiplier - 1) * 100)}%)</span>
-					{/each}
-				</div>
-			{/if}
-		</div>
-	</div>
+	<!-- Enemy Display Component -->
+	<EnemyDisplay
+		{currentEnemyConfig}
+		{enemyHealth}
+		{enemyHit}
+		{enemyDefeatedAnimating}
+		{displayedDamage}
+		{lastAnswerCorrect}
+		{activeBonuses}
+		{gameStatus}
+	/>
 
-	<!-- Spell Selection -->
-	<div class="spell-selection">
-		<!-- Spell buttons -->
-		<button on:click={() => handleSelectSpell('FIRE')} class:selected={selectedSpell === 'FIRE'}>
-			🔥 FIRE
-		</button>
-		<!-- No :active needed for spell selection, only visual state change -->
-		<button on:click={() => handleSelectSpell('ICE')} class:selected={selectedSpell === 'ICE'}>
-			🧊 ICE
-		</button>
-	</div>
+	<!-- Use the new SpellSelection component -->
+	<SpellSelection {selectedSpell} on:selectSpell={handleSelectSpellEvent} />
 
 	<!-- Equation Display -->
 	<div
@@ -185,137 +139,24 @@
 		class:status-result={gameStatus === GameStatus.RESULT}
 		class:status-pregame={gameStatus === GameStatus.PRE_GAME}
 	>
-		{#if gameMode === 'solver'}
-			{#if gameStatus === GameStatus.SOLVING}
-				<!-- Equation text using segments -->
-				<span class="equation-text">
-					{#each solverSolvingSegments as segment, i (i)}
-						{#if segment.type === 'fraction'}
-							<span class="segment segment-fraction">
-								<span class="fraction">
-									<span class="numerator">{segment.numerator}</span>
-									<span class="denominator">{segment.denominator}</span>
-								</span>
-							</span>
-						{:else}
-							<!-- Placeholder should be VISIBLE when solving -->
-							<span class="segment segment-{segment.type}">{segment.value}</span>
-						{/if}
-					{/each}
-				</span>
-			{:else if gameStatus === GameStatus.RESULT}
-				<!-- Result equation using segments -->
-				<div class="result-equation">
-					<span class="equation-content">
-						{#each solverResultSegments as segment, i (i)}
-							{#if segment.type === 'fraction'}
-								<span class="segment segment-fraction"
-									><!-- Placeholder should not appear inside fraction -->
-									<span class="fraction">
-										<span class="numerator">{segment.numerator}</span>
-										<span class="denominator">{segment.denominator}</span>
-									</span>
-								</span>
-							{:else}
-								<span
-									class="segment segment-{segment.type}"
-									class:placeholder-hidden={segment.type === 'placeholder'}>{segment.value}</span
-								>
-							{/if}
-						{/each}
-					</span>
-				</div>
-			{:else}
-				<span class="info-text">Loading...</span>
-			{/if}
-		{:else if gameMode === 'crafter'}
-			{#if gameStatus === GameStatus.SOLVING}
-				{#if isCraftingPhase}
-					<!-- Show equation being crafted using parsed segments -->
-					<span class="equation-text">
-						{#each crafterCraftingSegments as segment, i (i)}
-							{#if segment.type === 'fraction'}
-								<span class="segment segment-fraction">
-									<span class="fraction">
-										<span class="numerator">{segment.numerator}</span>
-										<span class="denominator">{segment.denominator}</span>
-									</span>
-								</span>
-							{:else}
-								<!-- Placeholder should be VISIBLE when crafting -->
-								<span class="segment segment-{segment.type}">{segment.value}</span>
-							{/if}
-						{/each}
-					</span>
-				{:else}
-					<!-- Show crafted equation for solving using parsed segments -->
-					<span class="equation-text">
-						{#each crafterSolvingEqSegments as segment, i (i)}
-							{#if segment.type === 'fraction'}
-								<span class="segment segment-fraction"
-									><!-- Placeholder should not appear inside fraction -->
-									<span class="fraction">
-										<span class="numerator">{segment.numerator}</span>
-										<span class="denominator">{segment.denominator}</span>
-									</span>
-								</span>
-							{:else}
-								<!-- Placeholder should be VISIBLE when solving (crafter eq part) -->
-								<span class="segment segment-{segment.type}">{segment.value}</span>
-							{/if}
-						{/each}
-						<span class="segment segment-operator"> = </span>
-						{#each crafterSolvingInputSegments as segment, i (i)}
-							{#if segment.type === 'fraction'}
-								<span class="segment segment-fraction"
-									><!-- Placeholder should not appear inside fraction -->
-									<span class="fraction">
-										<span class="numerator">{segment.numerator}</span>
-										<span class="denominator">{segment.denominator}</span>
-									</span>
-								</span>
-							{:else}
-								<!-- Placeholder should be VISIBLE when solving (crafter input part) -->
-								<span class="segment segment-{segment.type}">{segment.value}</span>
-							{/if}
-						{/each}
-					</span>
-				{/if}
-			{:else if gameStatus === GameStatus.RESULT}
-				<div class="result-equation">
-					{#if evaluationError}
-						<!-- Show evaluation error -->
-						<span class="error-text">{evaluationError}</span>
-					{:else}
-						<!-- Show solved equation using parsed segments -->
-						<span class="equation-content">
-							{#each crafterResultSegments as segment, i (i)}
-								{#if segment.type === 'fraction'}
-									<span class="segment segment-fraction"
-										><!-- Placeholder should not appear inside fraction -->
-										<span class="fraction">
-											<span class="numerator">{segment.numerator}</span>
-											<span class="denominator">{segment.denominator}</span>
-										</span>
-									</span>
-								{:else}
-									<span
-										class="segment segment-{segment.type}"
-										class:placeholder-hidden={segment.type === 'placeholder'}>{segment.value}</span
-									>
-								{/if}
-							{/each}
-						</span>
-					{/if}
-				</div>
-			{:else}
-				<span class="info-text">1 + 1 = 2</span>
-			{/if}
-		{:else}
-			<!-- Fallback if mode is null -->
-			<span class="info-text">Select Mode...</span>
-		{/if}
+		<EquationDisplay
+			{gameMode}
+			{gameStatus}
+			{isCraftingPhase}
+			{solverSolvingSegments}
+			{solverResultSegments}
+			{crafterCraftingSegments}
+			{crafterSolvingEqSegments}
+			{crafterSolvingInputSegments}
+			{crafterResultSegments}
+			{evaluationError}
+		/>
 	</div>
+
+	<!-- Crafter Level Description -->
+	{#if gameMode === 'crafter' && (gameStatus === GameStatus.SOLVING || gameStatus === GameStatus.RESULT) && crafterLevelDescription}
+		<div class="crafter-objective">🎯 Goal: {crafterLevelDescription}</div>
+	{/if}
 
 	<!-- Conditional Numpad Rendering -->
 	<div class="numpad-area">
@@ -371,150 +212,6 @@
 		overflow-y: auto; /* Add vertical scroll if content overflows */
 	}
 
-	/* --- Existing Styles below (make sure they don't conflict) --- */
-	.top-bar {
-		display: flex;
-		justify-content: space-between; /* Space out items */
-		align-items: center; /* Vertically align items */
-		width: 100%;
-		padding: 0.5rem 1rem; /* Add some padding */
-		box-sizing: border-box;
-		margin-bottom: 1.5rem; /* Add small margin below top bar */
-	}
-
-	.health-player {
-		color: #e74c3c;
-		font-size: 1.5rem; /* Larger font */
-		font-weight: bold;
-		background-color: rgba(231, 76, 60, 0.1); /* Light red background */
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		display: flex; /* Use flexbox to arrange items */
-		align-items: center; /* Center items vertically */
-		gap: 0.5rem; /* Add space between icon, bar, text */
-		min-width: 180px; /* Adjust width */
-	}
-
-	/* New div-based health bar styles */
-	.player-health-bar-container {
-		width: 80px; /* Match previous width */
-		height: 10px; /* Match previous height */
-		border: 2px solid #e74c3c; /* Always have a 2px border, but transparent */
-		border-radius: 3px; /* Apply radius to container */
-		overflow: hidden; /* Crucial for clipping the inner div */
-		background-color: #f8d7da; /* Track background */
-		position: relative; /* Needed if adding inner elements later */
-		transition: border-color 0.3s ease; /* Smooth color transition */
-	}
-
-	.player-health-bar-fill {
-		height: 100%;
-		background-color: #e74c3c; /* Fill color */
-		border-radius: 0; /* Fill div does NOT need radius */
-		transition: width 0.3s ease-in-out; /* Animate width changes */
-	}
-
-	.player-health-value {
-		font-size: 0.9em; /* Slightly smaller than the main text */
-		font-weight: bold; /* Keep it bold */
-		color: #e74c3c;
-		line-height: 1; /* Adjust line height */
-	}
-
-	.timer {
-		color: #3498db;
-		font-size: 1.5rem; /* Larger font */
-		font-weight: bold;
-		background-color: rgba(52, 152, 219, 0.1); /* Light blue background */
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		margin: 0; /* Remove margin */
-		min-width: 100px; /* Ensure minimum width */
-		text-align: center;
-	}
-
-	.enemy-area {
-		/* flex-grow: 1; */ /* Removed flex-grow */
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		align-items: center;
-		width: 100%;
-		gap: 0.25rem; /* Add small gap between elements */
-		position: relative; /* Make this the reference for absolute positioning */
-		margin-bottom: 2rem; /* Increased spacing */
-	}
-
-	.enemy-icon {
-		font-size: 3rem;
-	}
-
-	.enemy-label {
-		font-weight: bold;
-		font-size: 1.1rem;
-	}
-
-	.enemy-health-bar {
-		width: 100px; /* Fixed width for health bar */
-		height: 12px;
-		appearance: none; /* Override default appearance */
-		border: 1px solid #bdc3c7;
-		border-radius: 6px;
-		overflow: hidden; /* Ensure inner bar respects border-radius */
-	}
-
-	/* Styling the progress bar fill */
-	.enemy-health-bar::-webkit-progress-bar {
-		/* Background */
-		background-color: #eee;
-		border-radius: 6px;
-	}
-	.enemy-health-bar::-webkit-progress-value {
-		/* Fill */
-		background-color: #e74c3c; /* Red color for health */
-		border-radius: 6px;
-		transition: width 0.3s ease-in-out;
-	}
-	.enemy-health-bar::-moz-progress-bar {
-		/* Firefox Fill */
-		background-color: #e74c3c;
-		border-radius: 6px;
-		transition: width 0.3s ease-in-out;
-	}
-
-	.enemy-health-text {
-		font-size: 0.9rem;
-		color: #555;
-	}
-
-	.spell-selection {
-		display: flex;
-		justify-content: center;
-		gap: 1rem;
-		width: 100%;
-		margin-bottom: 2rem; /* Increased spacing */
-	}
-	.spell-selection button {
-		padding: 0.8rem 1.5rem;
-		font-size: 1rem;
-		border: 2px solid #ccc;
-		border-radius: 6px;
-		cursor: pointer;
-		background-color: #fff;
-		transition: all 0.2s ease;
-	}
-	.spell-selection button:hover:not(:disabled) {
-		background-color: #eef;
-	}
-	.spell-selection button.selected {
-		border-color: #3498db;
-		background-color: #d6eaf8;
-	}
-	.spell-selection button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
 	.equation-display {
 		width: 350px;
 		height: 70px; /* Added fixed height */
@@ -549,221 +246,15 @@
 		animation: shake-incorrect 0.4s ease-in-out;
 	}
 
-	.equation-text,
-	.result-equation,
-	.info-text,
-	.equation-content {
-		font-size: 1.8rem;
-		font-weight: bold;
-		line-height: 1.2;
-		display: inline-flex;
-		align-items: center;
-		white-space: nowrap; /* Prevent wrapping */
-	}
-
-	.result-equation {
-		/* Styles specific to the solved equation display */
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		position: relative;
-	}
-
 	.numpad-area {
 		width: 100%;
 		display: flex;
 		justify-content: center;
 	}
 
-	.damage-dealt-text {
-		position: absolute;
-		top: 20%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		font-size: 1.5rem;
-		font-weight: bold;
-		color: #e74c3c;
-		text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-		pointer-events: none;
-		opacity: 0;
-	}
-
-	.animate-damage {
-		animation: show-damage 1s ease-out forwards;
-	}
-
-	/* Add styles for low-time timer */
-	.timer.low-time {
-		color: #e74c3c; /* Red color */
-		animation: low-time-pulse 1s infinite;
-	}
-
-	@keyframes low-time-pulse {
-		0%,
-		100% {
-			transform: scale(1);
-			opacity: 1;
-		}
-		50% {
-			transform: scale(1.05);
-			opacity: 0.8;
-		}
-	}
-
-	/* Enemy Hit Reaction Style */
-	.enemy-icon.hit-reaction {
-		animation: enemy-hit-react 0.2s ease-out;
-	}
-
-	@keyframes enemy-hit-react {
-		0% {
-			transform: scale(1);
-			filter: brightness(1);
-		}
-		50% {
-			transform: scale(1.1);
-			filter: brightness(1.8);
-		}
-		100% {
-			transform: scale(1);
-			filter: brightness(1);
-		}
-	}
-
-	.spell-selection button {
-		/* ... existing styles ... */
-		transition: all 0.2s ease;
-	}
-	.spell-selection button:active {
-		transform: scale(0.95); /* Slightly depress */
-	}
-
-	@keyframes pulse-glow {
-		0% {
-			box-shadow: 0 0 8px rgba(46, 204, 113, 0.5);
-		}
-		50% {
-			box-shadow: 0 0 20px rgba(46, 204, 113, 0.9);
-		}
-		100% {
-			box-shadow: 0 0 8px rgba(46, 204, 113, 0.5);
-		}
-	}
-
-	/* Player Health Bar Shield Active State */
-	.player-health-bar-container.shield-active {
-		border-color: #3498db; /* Blue border */
-		box-shadow: 0 0 6px rgba(52, 152, 219, 0.6); /* Subtle blue glow */
-		animation: pulse-shield-bar 1.5s infinite ease-in-out;
-	}
-
-	.enemy-icon.defeated {
-		animation: enemy-defeat 0.6s ease-in forwards;
-	}
-
-	/* Added styles for feedback overlay and bonuses */
-	.feedback-overlay {
-		position: absolute;
-		top: 50%; /* Center vertically relative to enemy area */
-		left: 50%;
-		transform: translate(-50%, -50%);
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 5px;
-		pointer-events: none; /* Prevent interaction */
-	}
-
-	.damage-dealt-text {
-		font-size: 1.8rem;
-		font-weight: bold;
-		color: #e74c3c;
-		text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
-		opacity: 0;
-	}
-
-	.bonus-display {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 2px;
-		background-color: rgba(255, 215, 0, 0.8); /* Gold background */
-		color: #4b3621; /* Dark brown text */
-		padding: 5px 10px;
-		border-radius: 5px;
-		font-size: 0.9rem;
-		font-weight: bold;
-		text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.3);
-		opacity: 0;
-	}
-
-	.animate-damage {
-		animation: show-feedback 1s ease-out forwards;
-	}
-	.animate-bonus {
-		animation: show-feedback 1.2s ease-out 0.1s forwards; /* Slight delay */
-	}
-
-	@keyframes show-feedback {
-		0% {
-			opacity: 0;
-			transform: translateY(20px) scale(0.8);
-		}
-		20% {
-			opacity: 1;
-			transform: translateY(-5px) scale(1.1);
-		}
-		80% {
-			opacity: 1;
-			transform: translateY(-10px) scale(1);
-		}
-		100% {
-			opacity: 0;
-			transform: translateY(-20px) scale(0.9);
-		}
-	}
-
 	.equation-display.eval-error {
 		border-color: #e74c3c; /* Red border for error */
 		background-color: #fadbd8;
-	}
-
-	.error-text {
-		font-size: 1.2rem; /* Slightly smaller */
-		color: #c0392b; /* Darker red */
-		font-weight: bold;
-	}
-
-	/* --- Segment Spacing Styles --- */
-	.segment {
-		display: inline-flex; /* Use inline-flex for better vertical alignment */
-		align-items: center;
-		vertical-align: middle;
-		margin: 0; /* Default no margin */
-	}
-
-	.segment-operator {
-		margin: 0 0.2em; /* Add space around operators (+, -, *, /, =) */
-	}
-
-	.segment-paren_open {
-		margin-left: 0.1em; /* Small space before open paren */
-		margin-right: 0.05em; /* Very small space after open paren */
-	}
-
-	.segment-paren_close {
-		margin-left: 0.05em; /* Very small space before close paren */
-		margin-right: 0.1em; /* Small space after close paren */
-	}
-
-	/* Special handling for fractions to give them slight spacing */
-	.segment-fraction {
-		margin: 0 0.1em;
-	}
-
-	/* Style to hide the placeholder visually but keep layout space */
-	.placeholder-hidden {
-		visibility: hidden;
 	}
 
 	/* --- Fraction Styling --- */
@@ -786,5 +277,17 @@
 		line-height: 1;
 		border-top: 1.5px solid currentColor; /* Fraction line */
 		padding-top: 0.1em;
+	}
+
+	.crafter-objective {
+		font-size: 0.9em;
+		color: #555;
+		background-color: #eaf2f8;
+		padding: 0.4rem 0.8rem;
+		border-radius: 4px;
+		margin-top: -0.75rem; /* Pull up slightly below equation display */
+		margin-bottom: 1rem; /* Add space before numpad */
+		max-width: 350px;
+		text-align: center;
 	}
 </style>

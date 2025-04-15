@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import { GameStatus, type SpellType } from '../types'; // Import necessary types
+	import { GameStatus, type SpellType } from '../../types';
 
 	const dispatch = createEventDispatcher<{
 		// Crafting events
