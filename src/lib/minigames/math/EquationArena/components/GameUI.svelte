@@ -61,23 +61,6 @@
 	// Add prop for current level number (needed for fraction display)
 	export let currentLevelNumber: number = 1;
 
-	// --- Helper Function for Spacing ---
-	function formatEquationSpacing(eq: string, placeholder: string = '_'): string {
-		if (!eq) return eq; // Handle null/empty strings
-		// Temporarily replace placeholder to avoid spacing issues around it
-		const placeholderToken = '@@PLACEHOLDER@@';
-		let tempEq = eq.replace(placeholder, placeholderToken);
-
-		// Add spaces around +, -, ×, ÷, =
-		let formatted = tempEq.replace(/([+\-×÷=])/g, ' $1 '); // Note: escaped hyphen
-		// Collapse multiple spaces into one and trim
-		formatted = formatted.replace(/\s+/g, ' ').trim();
-
-		// Restore placeholder
-		formatted = formatted.replace(placeholderToken, placeholder);
-		return formatted;
-	}
-
 	// --- Event Handlers ---
 
 	// Spell Selection
@@ -114,6 +97,26 @@
 	function handleCastSpell() {
 		dispatch('castSpell');
 	}
+
+	// Reactive declaration to get segments - ensures recalculation when inputs change
+	$: solverSolvingSegments = parseEquationForDisplay(
+		currentEquation.replace('?', playerInput + '_'),
+		currentLevelNumber
+	);
+	$: solverResultSegments = parseEquationForDisplay(
+		lastFullEquation.replace('?', lastPlayerInput) + '_',
+		currentLevelNumber
+	);
+	$: crafterCraftingSegments = parseEquationForDisplay(
+		(craftedEquationString || '') + '_',
+		currentLevelNumber
+	);
+	$: crafterSolvingEqSegments = parseEquationForDisplay(craftedEquationString, currentLevelNumber);
+	$: crafterSolvingInputSegments = parseEquationForDisplay(playerInput + '_', currentLevelNumber);
+	$: crafterResultSegments = parseEquationForDisplay(
+		lastFullEquation.replace('?', lastPlayerInput) + '_',
+		currentLevelNumber
+	);
 </script>
 
 <!-- Game UI Markup will go here -->
@@ -184,22 +187,43 @@
 	>
 		{#if gameMode === 'solver'}
 			{#if gameStatus === GameStatus.SOLVING}
-				<!-- Equation text -->
-				<span class="equation-text"
-					>{formatEquationSpacing(
-						currentEquation.replace('?', playerInput + '_'),
-						playerInput + '_'
-					)}</span
-				>
+				<!-- Equation text using segments -->
+				<span class="equation-text">
+					{#each solverSolvingSegments as segment, i (i)}
+						{#if segment.type === 'fraction'}
+							<span class="segment segment-fraction">
+								<span class="fraction">
+									<span class="numerator">{segment.numerator}</span>
+									<span class="denominator">{segment.denominator}</span>
+								</span>
+							</span>
+						{:else}
+							<!-- Placeholder should be VISIBLE when solving -->
+							<span class="segment segment-{segment.type}">{segment.value}</span>
+						{/if}
+					{/each}
+				</span>
 			{:else if gameStatus === GameStatus.RESULT}
-				<!-- Result equation -->
+				<!-- Result equation using segments -->
 				<div class="result-equation">
-					<span class="equation-content"
-						>{formatEquationSpacing(
-							lastFullEquation.replace('?', lastPlayerInput),
-							lastPlayerInput
-						)}</span
-					>
+					<span class="equation-content">
+						{#each solverResultSegments as segment, i (i)}
+							{#if segment.type === 'fraction'}
+								<span class="segment segment-fraction"
+									><!-- Placeholder should not appear inside fraction -->
+									<span class="fraction">
+										<span class="numerator">{segment.numerator}</span>
+										<span class="denominator">{segment.denominator}</span>
+									</span>
+								</span>
+							{:else}
+								<span
+									class="segment segment-{segment.type}"
+									class:placeholder-hidden={segment.type === 'placeholder'}>{segment.value}</span
+								>
+							{/if}
+						{/each}
+					</span>
 				</div>
 			{:else}
 				<span class="info-text">Loading...</span>
@@ -209,45 +233,50 @@
 				{#if isCraftingPhase}
 					<!-- Show equation being crafted using parsed segments -->
 					<span class="equation-text">
-						{#each parseEquationForDisplay(craftedEquationString || '_', currentLevelNumber) as segment, i (i)}
+						{#each crafterCraftingSegments as segment, i (i)}
 							{#if segment.type === 'fraction'}
-								<span class="fraction">
-									<span class="numerator">{segment.numerator}</span>
-									<span class="denominator">{segment.denominator}</span>
+								<span class="segment segment-fraction">
+									<span class="fraction">
+										<span class="numerator">{segment.numerator}</span>
+										<span class="denominator">{segment.denominator}</span>
+									</span>
 								</span>
-							{:else if segment.type === 'operator'}
-								<span class="op-num-text"> {segment.value} </span>
-							{:else if segment.type === 'number' || segment.type === 'text' || segment.type === 'placeholder'}
-								<span class="op-num-text">{segment.value}</span>
+							{:else}
+								<!-- Placeholder should be VISIBLE when crafting -->
+								<span class="segment segment-{segment.type}">{segment.value}</span>
 							{/if}
 						{/each}
 					</span>
 				{:else}
 					<!-- Show crafted equation for solving using parsed segments -->
 					<span class="equation-text">
-						{#each parseEquationForDisplay(craftedEquationString, currentLevelNumber) as segment, i (i)}
+						{#each crafterSolvingEqSegments as segment, i (i)}
 							{#if segment.type === 'fraction'}
-								<span class="fraction">
-									<span class="numerator">{segment.numerator}</span>
-									<span class="denominator">{segment.denominator}</span>
+								<span class="segment segment-fraction"
+									><!-- Placeholder should not appear inside fraction -->
+									<span class="fraction">
+										<span class="numerator">{segment.numerator}</span>
+										<span class="denominator">{segment.denominator}</span>
+									</span>
 								</span>
-							{:else if segment.type === 'operator'}
-								<span class="op-num-text"> {segment.value} </span>
-							{:else if segment.type === 'number' || segment.type === 'text'}
-								<span class="op-num-text">{segment.value}</span>
+							{:else}
+								<!-- Placeholder should be VISIBLE when solving (crafter eq part) -->
+								<span class="segment segment-{segment.type}">{segment.value}</span>
 							{/if}
 						{/each}
-						<span class="op-num-text"> = </span>
-						{#each parseEquationForDisplay(playerInput + '_', currentLevelNumber) as segment, i (i)}
+						<span class="segment segment-operator"> = </span>
+						{#each crafterSolvingInputSegments as segment, i (i)}
 							{#if segment.type === 'fraction'}
-								<span class="fraction">
-									<span class="numerator">{segment.numerator}</span>
-									<span class="denominator">{segment.denominator}</span>
+								<span class="segment segment-fraction"
+									><!-- Placeholder should not appear inside fraction -->
+									<span class="fraction">
+										<span class="numerator">{segment.numerator}</span>
+										<span class="denominator">{segment.denominator}</span>
+									</span>
 								</span>
-							{:else if segment.type === 'operator'}
-								<span class="op-num-text"> {segment.value} </span>
-							{:else if segment.type === 'number' || segment.type === 'text' || segment.type === 'placeholder'}
-								<span class="op-num-text">{segment.value}</span>
+							{:else}
+								<!-- Placeholder should be VISIBLE when solving (crafter input part) -->
+								<span class="segment segment-{segment.type}">{segment.value}</span>
 							{/if}
 						{/each}
 					</span>
@@ -260,16 +289,20 @@
 					{:else}
 						<!-- Show solved equation using parsed segments -->
 						<span class="equation-content">
-							{#each parseEquationForDisplay(lastFullEquation.replace('?', lastPlayerInput), currentLevelNumber) as segment, i (i)}
+							{#each crafterResultSegments as segment, i (i)}
 								{#if segment.type === 'fraction'}
-									<span class="fraction">
-										<span class="numerator">{segment.numerator}</span>
-										<span class="denominator">{segment.denominator}</span>
+									<span class="segment segment-fraction"
+										><!-- Placeholder should not appear inside fraction -->
+										<span class="fraction">
+											<span class="numerator">{segment.numerator}</span>
+											<span class="denominator">{segment.denominator}</span>
+										</span>
 									</span>
-								{:else if segment.type === 'operator'}
-									<span class="op-num-text"> {segment.value} </span>
-								{:else if segment.type === 'number' || segment.type === 'text'}
-									<span class="op-num-text">{segment.value}</span>
+								{:else}
+									<span
+										class="segment segment-{segment.type}"
+										class:placeholder-hidden={segment.type === 'placeholder'}>{segment.value}</span
+									>
 								{/if}
 							{/each}
 						</span>
@@ -501,6 +534,7 @@
 			border-color 0.3s ease;
 		margin-bottom: 1.5rem;
 		overflow: hidden;
+		white-space: nowrap; /* Prevent wrapping of equation */
 	}
 
 	.equation-display.correct {
@@ -517,10 +551,14 @@
 
 	.equation-text,
 	.result-equation,
-	.info-text {
+	.info-text,
+	.equation-content {
 		font-size: 1.8rem;
 		font-weight: bold;
 		line-height: 1.2;
+		display: inline-flex;
+		align-items: center;
+		white-space: nowrap; /* Prevent wrapping */
 	}
 
 	.result-equation {
@@ -696,11 +734,36 @@
 		font-weight: bold;
 	}
 
-	/* Add rule to reserve space for the underscore in the result state */
-	.equation-display.status-result .result-equation .equation-content::after {
-		content: '\_'; /* Add the underscore */
-		visibility: hidden; /* Make it invisible */
-		margin-left: 2px; /* Approximate spacing */
+	/* --- Segment Spacing Styles --- */
+	.segment {
+		display: inline-flex; /* Use inline-flex for better vertical alignment */
+		align-items: center;
+		vertical-align: middle;
+		margin: 0; /* Default no margin */
+	}
+
+	.segment-operator {
+		margin: 0 0.2em; /* Add space around operators (+, -, *, /, =) */
+	}
+
+	.segment-paren_open {
+		margin-left: 0.1em; /* Small space before open paren */
+		margin-right: 0.05em; /* Very small space after open paren */
+	}
+
+	.segment-paren_close {
+		margin-left: 0.05em; /* Very small space before close paren */
+		margin-right: 0.1em; /* Small space after close paren */
+	}
+
+	/* Special handling for fractions to give them slight spacing */
+	.segment-fraction {
+		margin: 0 0.1em;
+	}
+
+	/* Style to hide the placeholder visually but keep layout space */
+	.placeholder-hidden {
+		visibility: hidden;
 	}
 
 	/* --- Fraction Styling --- */

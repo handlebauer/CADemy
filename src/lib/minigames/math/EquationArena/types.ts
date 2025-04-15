@@ -59,8 +59,8 @@ export interface GradeConfig {
 }
 
 export interface DisplaySegment {
-	type: 'fraction' | 'operator' | 'number' | 'text' | 'placeholder';
-	value?: string; // For operators, numbers, text
+	type: 'fraction' | 'operator' | 'number' | 'text' | 'placeholder' | 'paren_open' | 'paren_close';
+	value?: string; // For operators, numbers, text, parens
 	numerator?: string; // For fractions
 	denominator?: string; // For fractions
 }
