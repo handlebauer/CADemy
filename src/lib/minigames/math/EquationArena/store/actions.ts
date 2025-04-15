@@ -1,5 +1,11 @@
 import { getCrafterLevelConfig } from '../config/crafterLevels';
-import { FIRE_DAMAGE, grades, enemies } from '../config';
+import {
+	FIRE_DAMAGE,
+	grades,
+	enemies,
+	WRONG_ANSWER_HEALTH_PENALTY,
+	WRONG_ANSWER_PENALTY_TOLERANCE
+} from '../config/index';
 import { evaluateEquation } from '../utils/math';
 import { getActiveBonuses } from '../config/bonusLogic';
 
@@ -450,6 +456,7 @@ export function createGameplayActions(
 
 				if (answerIsCorrect) {
 					intermediateState.equationsSolvedCorrectly += 1;
+					intermediateState.consecutiveWrongAnswers = 0; // Reset counter on correct answer
 
 					// --- Bonus Calculation (Crafter Mode Only & Correct Answer & Valid Equation) ---
 					if (
@@ -489,6 +496,22 @@ export function createGameplayActions(
 				} else {
 					// Incorrect answer
 					currentActiveBonuses = []; // Reset bonuses
+					intermediateState.consecutiveWrongAnswers += 1; // Increment counter
+
+					// Apply health penalty if tolerance exceeded
+					if (intermediateState.consecutiveWrongAnswers > WRONG_ANSWER_PENALTY_TOLERANCE) {
+						const newPlayerHealth = Math.max(
+							0,
+							intermediateState.playerHealth - WRONG_ANSWER_HEALTH_PENALTY
+						);
+						intermediateState.playerHealth = newPlayerHealth;
+						if (newPlayerHealth <= 0) {
+							// Player is defeated due to penalty
+							setTimeout(() => setGameOver('Defeated by Mistakes!'), 0);
+							intermediateState.gameStatus = GameStatus.GAME_OVER;
+							intermediateState.resultMessage = 'Defeated by Mistakes!';
+						}
+					}
 				}
 
 				// Final state update

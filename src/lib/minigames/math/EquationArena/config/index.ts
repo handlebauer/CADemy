@@ -30,6 +30,8 @@ export const RESULT_DISPLAY_DELAY = 1_500; // ms delay before next round
 
 // export const ENEMY_DAMAGE = 15; // Now defined per-enemy in enemies.json
 export const FIRE_DAMAGE = 25; // Base damage inflicted by FIRE spell (can be modified by bonuses)
+export const WRONG_ANSWER_HEALTH_PENALTY = 10; // Health penalty for wrong answer
+export const WRONG_ANSWER_PENALTY_TOLERANCE = 0; // Number of wrong answers allowed before penalty
 
 // --- Tweakpane Dev Config ---
 
@@ -44,6 +46,16 @@ export const equationArenaTweakpaneBindings: TweakpaneConfigBinding[] = [
 	{
 		key: 'FIRE_DAMAGE',
 		options: { label: 'Fire Damage', min: 5, max: 100, step: 5 },
+		folderTitle: 'Damage'
+	},
+	{
+		key: 'WRONG_ANSWER_HEALTH_PENALTY',
+		options: { label: 'Wrong Answer Penalty', min: 0, max: 50, step: 1 },
+		folderTitle: 'Damage'
+	},
+	{
+		key: 'WRONG_ANSWER_PENALTY_TOLERANCE',
+		options: { label: 'Wrong Answer Tolerance', min: 0, max: 10, step: 1 },
 		folderTitle: 'Damage'
 	}
 ];

@@ -46,6 +46,7 @@ export interface ArenaState {
 	allowedCrafterChars: string[] | null;
 	isCraftedEquationValidForLevel: boolean;
 	enemyJustDefeated: boolean;
+	consecutiveWrongAnswers: number;
 }
 
 export const initialArenaState: ArenaState = {
@@ -79,7 +80,8 @@ export const initialArenaState: ArenaState = {
 	needsCrafterTutorial: true,
 	allowedCrafterChars: null,
 	isCraftedEquationValidForLevel: false,
-	enemyJustDefeated: false
+	enemyJustDefeated: false,
+	consecutiveWrongAnswers: 0
 };
 
 // --- Store Creation Logic ---

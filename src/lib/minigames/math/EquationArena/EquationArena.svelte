@@ -8,6 +8,8 @@
 	import {
 		FIRE_DAMAGE,
 		RESULT_DISPLAY_DELAY,
+		WRONG_ANSWER_HEALTH_PENALTY,
+		WRONG_ANSWER_PENALTY_TOLERANCE,
 		equationArenaTweakpaneBindings
 	} from './config/index';
 	import { getCrafterLevelConfig } from './config/crafterLevels';
@@ -29,7 +31,9 @@
 	// --- Config Variables (local reactive state) ---
 	let globalConfig = {
 		RESULT_DISPLAY_DELAY,
-		FIRE_DAMAGE
+		FIRE_DAMAGE,
+		WRONG_ANSWER_HEALTH_PENALTY,
+		WRONG_ANSWER_PENALTY_TOLERANCE
 	};
 
 	// --- Local Component State (Timers, Intervals) ---

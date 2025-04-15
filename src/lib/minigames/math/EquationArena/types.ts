@@ -11,7 +11,13 @@ export enum GameStatus {
 }
 
 export interface TweakpaneConfigBinding {
-	key: 'ENEMY_ATTACK_INTERVAL' | 'RESULT_DISPLAY_DELAY' | 'ENEMY_DAMAGE' | 'FIRE_DAMAGE';
+	key:
+		| 'ENEMY_ATTACK_INTERVAL'
+		| 'RESULT_DISPLAY_DELAY'
+		| 'ENEMY_DAMAGE'
+		| 'FIRE_DAMAGE'
+		| 'WRONG_ANSWER_HEALTH_PENALTY'
+		| 'WRONG_ANSWER_PENALTY_TOLERANCE';
 	options: Record<string, unknown>;
 	folderTitle: string;
 }
