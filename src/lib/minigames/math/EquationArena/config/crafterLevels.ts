@@ -77,14 +77,12 @@ function isSyntacticallySound(eq: string): boolean {
 export const crafterLevelConfigs: CrafterLevelConfig[] = [
 	{
 		level: 1,
-		description: 'Use parentheses for order of operations.',
-		allowedChars: [...numbers, '+', '-', '×', '(', ')'],
+		description: 'Create some equations!',
+		allowedChars: [...numbers, '+', '-', '×', '/', '(', ')'],
 		validate: (equation: string): boolean => {
 			const trimmed = equation.trim();
-			if (!isSyntacticallySound(trimmed)) return false;
-
-			// Level 1 specific: Must contain parentheses
-			return trimmed.includes('(') && trimmed.includes(')');
+			// Only check for basic syntactic validity
+			return isSyntacticallySound(trimmed);
 		}
 	},
 	{
@@ -120,8 +118,8 @@ export const crafterLevelConfigs: CrafterLevelConfig[] = [
 	},
 	{
 		level: 3,
-		description: 'Create an equation using decimals.',
-		allowedChars: [...numbers, '+', '-', '×', '.'], // Multiplication and decimal
+		description: 'Create an equation using decimals and division.',
+		allowedChars: [...numbers, '+', '-', '×', '/', '.'], // Multiplication, division and decimal
 		validate: (equation: string): boolean => {
 			const trimmed = equation.trim();
 			if (!isSyntacticallySound(trimmed)) return false;
@@ -129,7 +127,12 @@ export const crafterLevelConfigs: CrafterLevelConfig[] = [
 			// Level 3 specific: Must contain a decimal point
 			// Ensure the decimal is part of a number, not standalone.
 			const decimalValid = trimmed.includes('.') && /\d\.\d/.test(trimmed);
-			return decimalValid;
+
+			// Optional: Also require division for this level?
+			// const divisionValid = trimmed.includes('/');
+			// return decimalValid && divisionValid;
+
+			return decimalValid; // Keep original validation for now
 		}
 	}
 	// Add more levels here

@@ -79,7 +79,7 @@ export function createInputActions(update: StoreUpdater) {
 }
 
 export function createCrafterActions(update: StoreUpdater) {
-	const isOperator = (char: string): boolean => ['+', '-', '×', '÷'].includes(char);
+	const isOperator = (char: string): boolean => ['+', '-', '×', '÷', '/'].includes(char);
 	return {
 		appendToCraftedEquation: (char: string) =>
 			update((state) => {
@@ -527,13 +527,11 @@ export function createGameplayActions(
 					intermediateState.consecutiveWrongAnswers = 0; // Reset counter on correct answer
 
 					// --- Bonus Calculation (Crafter Mode Only & Correct Answer & Valid Equation) ---
-					if (
-						intermediateState.gameMode === 'crafter' &&
-						expected !== null // Ensure the crafted equation evaluated correctly
-					) {
+					if (intermediateState.gameMode === 'crafter' && expected !== null) {
 						currentActiveBonuses = getActiveBonuses(
 							intermediateState.craftedEquationString,
-							expected, // Pass the non-null number
+							intermediateState.playerInput,
+							expected,
 							intermediateState.currentLevelNumber,
 							intermediateState.gameMode
 						);

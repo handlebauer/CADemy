@@ -376,7 +376,7 @@
 			enemyDefeatedTimeout = null;
 			// Animation flag can reset automatically based on game status change
 			// or be explicitly reset if needed when ResultsScreen shows.
-		}, 1000); // Adjust delay as needed (e.g., match animation duration)
+		}, 1500); // Increased from 1000ms to 1500ms to give bonus animation more time
 	}
 
 	function handleDamageDisplaySequence() {
@@ -472,6 +472,9 @@
 	// Modified reactive block to handle RESULT state and trigger victory sequence
 	$: {
 		if ($arenaStore.gameStatus === GameStatus.RESULT) {
+			// Always handle damage and bonus display regardless of enemy defeat
+			handleDamageDisplaySequence();
+
 			if ($arenaStore.enemyJustDefeated) {
 				// Enemy defeated, trigger victory sequence
 				console.log(
@@ -479,9 +482,8 @@
 				);
 				handleEnemyVictorySequence();
 			} else {
-				// Normal RESULT state, handle damage display and next round
-				console.log('Reactive: Game Status == RESULT -> Calling Normal Sequences');
-				handleDamageDisplaySequence(); // Checks conditions internally
+				// Normal RESULT state, handle next round
+				console.log('Reactive: Game Status == RESULT -> Calling Next Round Sequence');
 				handleNextRoundSequence(); // Checks conditions internally
 			}
 		} else if ($arenaStore.gameStatus !== GameStatus.GAME_OVER && enemyDefeatedAnimating) {
