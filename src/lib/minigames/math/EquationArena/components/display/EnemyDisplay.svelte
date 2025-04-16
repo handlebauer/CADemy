@@ -10,13 +10,25 @@
 	export let lastAnswerCorrect: boolean | null = null;
 	export let activeBonuses: BonusConfig[] = [];
 	export let gameStatus: GameStatus;
+	export let isEnemyTelegraphing: boolean = false;
 </script>
 
 <!-- Enemy Area Markup -->
 <div class="enemy-area" style:--enemy-color={currentEnemyConfig?.color || '#888'}>
 	<!-- Wrapper for core enemy info -->
 	<div class="enemy-details-box">
-		<div class="enemy-icon" class:hit-reaction={enemyHit} class:defeated={enemyDefeatedAnimating}>
+		<div
+			class="enemy-icon"
+			class:hit-reaction={enemyHit}
+			class:defeated={enemyDefeatedAnimating}
+			class:telegraph-dragon={isEnemyTelegraphing && currentEnemyConfig?.id === 'dragon'}
+			class:telegraph-order_keeper={isEnemyTelegraphing &&
+				currentEnemyConfig?.id === 'order_keeper'}
+			class:telegraph-fraction_fiend={isEnemyTelegraphing &&
+				currentEnemyConfig?.id === 'fraction_fiend'}
+			class:telegraph-decimal_demon={isEnemyTelegraphing &&
+				currentEnemyConfig?.id === 'decimal_demon'}
+		>
 			{currentEnemyConfig?.icon || '🐉'}
 		</div>
 		<div class="enemy-label">{currentEnemyConfig?.name || 'Enemy'}</div>
@@ -136,6 +148,87 @@
 		100% {
 			opacity: 0;
 			transform: scale(0.8) rotate(720deg);
+		}
+	}
+
+	/* --- Telegraph Animations --- */
+	.enemy-icon.telegraph-dragon {
+		animation: telegraph-fire-breath 1.5s ease-in-out;
+	}
+	.enemy-icon.telegraph-order_keeper {
+		animation: telegraph-eye-glow 1.5s ease-in-out;
+	}
+	.enemy-icon.telegraph-fraction_fiend {
+		animation: telegraph-puzzle-shake 1.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+	}
+	.enemy-icon.telegraph-decimal_demon {
+		animation: telegraph-demon-pulse 1.5s ease-in-out;
+	}
+
+	@keyframes telegraph-fire-breath {
+		0% {
+			transform: scale(1);
+			filter: brightness(1);
+		}
+		50% {
+			transform: scale(1.15);
+			filter: brightness(1.5) hue-rotate(-20deg);
+		}
+		100% {
+			transform: scale(1);
+			filter: brightness(1);
+		}
+	}
+
+	@keyframes telegraph-eye-glow {
+		0% {
+			filter: brightness(1) drop-shadow(0 0 0px var(--enemy-color));
+		}
+		50% {
+			filter: brightness(2.5) drop-shadow(0 0 15px var(--enemy-color));
+		}
+		100% {
+			filter: brightness(1) drop-shadow(0 0 0px var(--enemy-color));
+		}
+	}
+
+	@keyframes telegraph-puzzle-shake {
+		/* Simple shake using the heart shake logic */
+		10%,
+		90% {
+			transform: translate3d(-2px, 0, 0) rotate(-1deg);
+		}
+		20%,
+		80% {
+			transform: translate3d(3px, 0, 0) rotate(2deg);
+		}
+		30%,
+		50%,
+		70% {
+			transform: translate3d(-4px, 0, 0) rotate(-3deg);
+		}
+		40%,
+		60% {
+			transform: translate3d(4px, 0, 0) rotate(3deg);
+		}
+		0%,
+		100% {
+			transform: translate3d(0, 0, 0) rotate(0deg);
+		}
+	}
+
+	@keyframes telegraph-demon-pulse {
+		0% {
+			transform: scale(1) rotate(0deg);
+			filter: drop-shadow(0 0 3px var(--enemy-color));
+		}
+		50% {
+			transform: scale(1.2) rotate(15deg);
+			filter: drop-shadow(0 0 10px var(--enemy-color)) brightness(1.5);
+		}
+		100% {
+			transform: scale(1) rotate(0deg);
+			filter: drop-shadow(0 0 3px var(--enemy-color));
 		}
 	}
 

@@ -12,6 +12,7 @@
 		CRAFTER_FEEDBACK_DISPLAY_DURATION,
 		WRONG_ANSWER_HEALTH_PENALTY,
 		WRONG_ANSWER_PENALTY_TOLERANCE,
+		SHIELD_DURATION_MS,
 		equationArenaTweakpaneBindings
 	} from './config/index';
 	import { getCrafterLevelConfig } from './config/crafterLevels';
@@ -45,7 +46,8 @@
 		WRONG_ANSWER_HEALTH_PENALTY,
 		WRONG_ANSWER_PENALTY_TOLERANCE,
 		INCORRECT_RESULT_DISPLAY_DELAY,
-		CRAFTER_FEEDBACK_DISPLAY_DURATION
+		CRAFTER_FEEDBACK_DISPLAY_DURATION,
+		SHIELD_DURATION_MS
 	};
 
 	// --- Local Component State (Timers, Intervals) ---
@@ -57,20 +59,44 @@
 	let playerHitTimeout: number | null = null;
 	let enemyHitTimeout: number | null = null;
 	let shieldHitTimeout: number | null = null;
+	let telegraphTimeout: number | null = null;
+	let shieldBlockedHitTimeout: number | null = null;
 	let pane: Pane;
 
 	// --- Local UI State ---
 	let displayedDamage: number | null = null;
 	let activeBonusesForDisplay: BonusConfig[] = [];
 	let playerHit = false;
+	let damageTaken: number | null = null;
 	let enemyHit = false;
 	let shieldHit = false;
+	let shieldBlockedHit = false;
 	let enemyDefeatedAnimating = false;
+	let isEnemyTelegraphing = false;
 	let gameStarted = false;
 
 	// --- Element Refs ---
 	let arenaContainerElement: HTMLDivElement;
 	let tweakpaneContainerElement: HTMLDivElement;
+
+	// --- Player Hit Animation Handling ---
+	let previousPlayerHealth: number | undefined = undefined;
+
+	// Non-reactive function to handle player hit animation
+	function handlePlayerHit(damageAmount: number) {
+		// Set visual state for hit animation
+		damageTaken = damageAmount;
+		playerHit = true;
+
+		// Clear previous timeout if it exists
+		if (playerHitTimeout) clearTimeout(playerHitTimeout);
+
+		// Set new timeout to turn off the hit effect
+		playerHitTimeout = setTimeout(() => {
+			playerHit = false;
+			damageTaken = null; // Clear damage display after animation
+		}, 600); // Duration matches TopBar animation
+	}
 
 	// --- Lifecycle Functions & Event Handlers ---
 
@@ -84,6 +110,8 @@
 		if (playerHitTimeout) clearTimeout(playerHitTimeout);
 		if (enemyHitTimeout) clearTimeout(enemyHitTimeout);
 		if (shieldHitTimeout) clearTimeout(shieldHitTimeout);
+		if (telegraphTimeout) clearTimeout(telegraphTimeout);
+		if (shieldBlockedHitTimeout) clearTimeout(shieldBlockedHitTimeout);
 
 		// Reset all timer variables
 		enemyAttackIntervalTimer = null;
@@ -94,10 +122,16 @@
 		playerHitTimeout = null;
 		enemyHitTimeout = null;
 		shieldHitTimeout = null;
+		telegraphTimeout = null;
+		shieldBlockedHitTimeout = null;
 
 		playerHit = false;
+		damageTaken = null;
 		enemyHit = false;
 		shieldHit = false;
+		shieldBlockedHit = false;
+		enemyDefeatedAnimating = false;
+		isEnemyTelegraphing = false;
 	}
 
 	// --- Handler Functions for Child Component Events ---
@@ -303,6 +337,19 @@
 		}
 	}
 
+	// Refactored player hit feedback (only handles shield visual now)
+	function triggerShieldHitFeedback() {
+		if (shieldHitTimeout) clearTimeout(shieldHitTimeout);
+		shieldHit = true;
+		if (arenaContainerElement) {
+			arenaContainerElement.style.setProperty('--shake-intensity', `5px`); // Standard shake for shield
+		}
+		shieldHitTimeout = setTimeout(() => {
+			shieldHit = false;
+			shieldHitTimeout = null;
+		}, 300);
+	}
+
 	// Function to handle starting the game (from StartScreen)
 	function handleStartGame() {
 		// startGame action now uses selectedGrade/gameMode from the store
@@ -451,45 +498,67 @@
 	function startEnemyAttackTimer(enemyConfig: ArenaState['currentEnemyConfig']) {
 		if (!enemyConfig) return; // Safety check
 		if (enemyAttackIntervalTimer) clearInterval(enemyAttackIntervalTimer); // Clear existing if any
+		if (telegraphTimeout) clearTimeout(telegraphTimeout); // Clear existing telegraph timeout
 
 		const attackInterval = enemyConfig.attackInterval;
 		const attackDamage = enemyConfig.damage;
+		const telegraphDuration = 1500; // Duration of telegraph animation (ms)
 
 		enemyAttackIntervalTimer = setInterval(() => {
 			// Check status *inside* the interval callback
 			if ($arenaStore.gameStatus === GameStatus.SOLVING) {
-				const shieldWasActive = $arenaStore.isShieldActive;
+				// Start telegraphing
+				isEnemyTelegraphing = true;
 
-				// Use the specific damage amount from the current enemy config
-				arenaStore.receivePlayerDamage(attackDamage);
+				// Clear any pending damage timeout from a previous cycle (unlikely but safe)
+				if (telegraphTimeout) clearTimeout(telegraphTimeout);
 
-				// Trigger visual effects
-				if (shieldWasActive) {
-					if (shieldHitTimeout) clearTimeout(shieldHitTimeout);
-					shieldHit = true;
-					if (arenaContainerElement) {
-						arenaContainerElement.style.setProperty('--shake-intensity', `5px`);
+				// Set timeout for the actual damage AFTER the telegraph duration
+				telegraphTimeout = setTimeout(() => {
+					// Check status again *inside* the damage timeout
+					// Allow damage/block if game is in progress (not ended/reset)
+					if (
+						$arenaStore.gameStatus === GameStatus.SOLVING ||
+						$arenaStore.gameStatus === GameStatus.RESULT
+					) {
+						const shieldWillBlock = $arenaStore.isShieldActive;
+
+						// Trigger shield block visual effect *before* damage action
+						if (shieldWillBlock) {
+							if (shieldBlockedHitTimeout) clearTimeout(shieldBlockedHitTimeout);
+							shieldBlockedHit = true;
+							shieldBlockedHitTimeout = setTimeout(() => {
+								shieldBlockedHit = false;
+								shieldBlockedHitTimeout = null;
+							}, 600); // Match damage text duration
+
+							// Also trigger screen edge flash for shield hit
+							triggerShieldHitFeedback();
+						}
+
+						// Call the store action to apply damage (or block it)
+						arenaStore.receivePlayerDamage(attackDamage);
+
+						// Ensure shield is cleared after blocking
+						if (shieldWillBlock) {
+							arenaStore.clearShieldState();
+						}
+
+						// Player hit feedback (damage text, health bar flash, heart shake)
+						// is handled reactively by the $: block monitoring $arenaStore.playerHealth
+						// This will NOT trigger if the shield blocked the damage, because playerHealth won't change.
 					}
-					shieldHitTimeout = setTimeout(() => {
-						shieldHit = false;
-						shieldHitTimeout = null;
-					}, 300);
-				} else {
-					if (playerHitTimeout) clearTimeout(playerHitTimeout);
-					// Recalculate shake based on current health *after* damage
-					const currentHealth = $arenaStore.playerHealth;
-					const shakeIntensity = Math.max(12, 12 + (100 - currentHealth) / 5);
-					if (arenaContainerElement) {
-						arenaContainerElement.style.setProperty('--shake-intensity', `${shakeIntensity}px`);
-					}
-					playerHit = true;
-					playerHitTimeout = setTimeout(() => {
-						playerHit = false;
-						playerHitTimeout = null;
-					}, 200);
-				}
+					// Stop telegraphing *after* damage sequence
+					isEnemyTelegraphing = false;
+					telegraphTimeout = null; // Clear the timeout ref
+				}, telegraphDuration);
+			} else {
+				// If not solving when interval fires, ensure telegraphing is off
+				isEnemyTelegraphing = false;
+				if (telegraphTimeout) clearTimeout(telegraphTimeout); // Clear pending damage too
+				telegraphTimeout = null;
 			}
-		}, attackInterval); // Use interval from enemy config
+		}, attackInterval); // Interval triggers the start of the process
 	}
 
 	// Helper function to start the game timer
@@ -542,6 +611,28 @@
 				pane = setupTweakpane(tweakpaneContainerElement, bindings, 'Game Config (Global)');
 			}
 		}
+
+		// Setup health tracking
+		const unsubscribe = arenaStore.subscribe((state) => {
+			// Initialize or handle health changes
+			if (typeof state.playerHealth === 'number') {
+				if (
+					typeof previousPlayerHealth === 'number' &&
+					state.playerHealth < previousPlayerHealth &&
+					state.gameStatus !== GameStatus.GAME_OVER
+				) {
+					// Calculate and show damage animation
+					const damageAmount = previousPlayerHealth - state.playerHealth;
+					handlePlayerHit(damageAmount);
+				}
+
+				// Always update the previous health value
+				previousPlayerHealth = state.playerHealth;
+			}
+		});
+
+		// Clean up subscription on component destroy
+		return () => unsubscribe();
 	});
 
 	onDestroy(() => {
@@ -608,6 +699,11 @@
 				on:clearCrafted={handleClearCraftedEvent}
 				on:backspaceCrafted={handleBackspaceCraftedEvent}
 				on:submitEquation={handleSubmitEquationEvent}
+				{playerHit}
+				{damageTaken}
+				{isEnemyTelegraphing}
+				shieldTimeRemaining={$arenaStore.shieldDurationRemaining}
+				{shieldBlockedHit}
 			/>
 		{:else}
 			<ResultsScreen

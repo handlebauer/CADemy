@@ -1,5 +1,5 @@
 import { getCrafterLevelConfig } from '../config/crafterLevels';
-import { grades, enemies } from '../config/index';
+import { grades, enemies, SHIELD_DURATION_MS } from '../config/index';
 import { evaluateEquation } from '../utils/math';
 import { evaluate } from 'mathjs';
 import { getActiveBonuses } from '../config/bonusLogic';
@@ -23,6 +23,20 @@ type StoreSetter = (value: ArenaState) => void;
 
 // Helper type for setGameOverInternal
 type SetGameOverInternalFn = (state: ArenaState, message: string) => ArenaState;
+
+const SHIELD_TIMER_INTERVAL_MS = 100; // Update timer every 100ms
+
+// Helper function to clear shield state and timer
+function clearShieldState(state: ArenaState): Partial<ArenaState> {
+	if (state.shieldTimerIntervalId) {
+		clearInterval(state.shieldTimerIntervalId);
+	}
+	return {
+		isShieldActive: false,
+		shieldDurationRemaining: null,
+		shieldTimerIntervalId: null
+	};
+}
 
 // --- Action Creator Functions ---
 
@@ -164,28 +178,41 @@ export function createCrafterActions(update: StoreUpdater) {
 	};
 }
 
-export function createLifecycleActions(update: StoreUpdater, set: StoreSetter) {
+export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) {
 	// Helper function to avoid duplicating setGameOver logic
 	const setGameOverInternal: SetGameOverInternalFn = (state, message) => {
 		// Ensure timers are implicitly stopped by changing the status
+		// Clear shield timer explicitly
+		const shieldClearedState = clearShieldState(state);
 		return {
 			...state,
+			...shieldClearedState,
 			gameStatus: GameStatus.GAME_OVER,
 			resultMessage: message,
-			activeBonuses: [], // Clear bonuses on game over
-			isShieldActive: false // Clear shield
-			// Keep enemyJustDefeated flag as is when setting game over
+			activeBonuses: [] // Clear bonuses on game over
 		};
 	};
 
 	return {
 		reset: () =>
-			update((state) => ({
-				...initialArenaState,
-				needsCrafterTutorial: state.needsCrafterTutorial,
-				enemyJustDefeated: false
-			})),
-		fullReset: () => set({ ...initialArenaState, enemyJustDefeated: false }),
+			update((state) => {
+				// Clear shield timer on reset
+				const shieldClearedState = clearShieldState(state);
+				const newState = {
+					...initialArenaState,
+					...shieldClearedState,
+					needsCrafterTutorial: state.needsCrafterTutorial,
+					enemyJustDefeated: false
+				};
+				console.log(`Player HP Reset: ${newState.playerHealth}`);
+				return newState;
+			}),
+		fullReset: () =>
+			update((state) => {
+				// Clear shield timer on full reset
+				const shieldClearedState = clearShieldState(state);
+				return { ...initialArenaState, ...shieldClearedState, enemyJustDefeated: false };
+			}),
 		setGrade: (grade: GradeLevel) =>
 			update((state) => {
 				const gradeConfig = grades.find((g: GradeConfig) => g.grade === grade);
@@ -240,8 +267,14 @@ export function createLifecycleActions(update: StoreUpdater, set: StoreSetter) {
 					enemyJustDefeated: false // Reset on start
 				};
 				switch (state.gameMode) {
-					case 'solver':
-						return { ...(baseStartState as ArenaState), ...generateSolverEquation(startingLevel) };
+					case 'solver': {
+						const newState = {
+							...(baseStartState as ArenaState),
+							...generateSolverEquation(startingLevel)
+						};
+						console.log(`Player HP Started (Solver): ${newState.playerHealth}`);
+						return newState;
+					}
 					case 'crafter': {
 						const startTutorial = state.needsCrafterTutorial;
 						const levelConfig = getCrafterLevelConfig(startingLevel);
@@ -249,7 +282,7 @@ export function createLifecycleActions(update: StoreUpdater, set: StoreSetter) {
 							console.error(`Crafter config for level ${startingLevel} not found!`);
 							return initialArenaState;
 						}
-						return {
+						const newState = {
 							...(baseStartState as ArenaState),
 							gameStatus: startTutorial ? GameStatus.TUTORIAL : GameStatus.SOLVING,
 							tutorialStep: startTutorial ? 1 : 0,
@@ -258,6 +291,8 @@ export function createLifecycleActions(update: StoreUpdater, set: StoreSetter) {
 							allowedCrafterChars: levelConfig.allowedChars,
 							isCraftedEquationValidForLevel: false
 						};
+						console.log(`Player HP Started (Crafter): ${newState.playerHealth}`);
+						return newState;
 					}
 					default:
 						console.error('Unknown game mode');
@@ -338,7 +373,7 @@ export function createLifecycleActions(update: StoreUpdater, set: StoreSetter) {
 	};
 }
 
-export function createEntityActions(update: StoreUpdater, setGameOver: (message: string) => void) {
+export function createEntityActions(update: StoreUpdater, _setGameOver: (message: string) => void) {
 	return {
 		damageEnemy: (amount: number) =>
 			update((state) => {
@@ -351,33 +386,40 @@ export function createEntityActions(update: StoreUpdater, setGameOver: (message:
 				}
 				return newState;
 			}),
-		receivePlayerDamage: (amount: number) =>
+		receivePlayerDamage: (damageAmount: number) =>
 			update((state) => {
-				if (state.gameStatus !== GameStatus.SOLVING) return state;
-				let damageTaken = amount;
-				let newShieldState = state.isShieldActive;
+				// Allow damage if solving OR if the game just entered the RESULT phase
+				if (state.gameStatus !== GameStatus.SOLVING && state.gameStatus !== GameStatus.RESULT)
+					return state;
+
+				// Check if shield is active *before* applying damage
 				if (state.isShieldActive) {
-					damageTaken = 0; // Shield absorbs all damage
-					newShieldState = false; // Shield breaks after one hit
 					console.log('Shield absorbed damage!');
+					// Shield blocks damage, playerHealth remains unchanged
+					// Clear the shield state and timer
+					const shieldClearedState = clearShieldState(state);
+					return { ...state, ...shieldClearedState };
 				}
 
-				const newHealth = Math.max(0, state.playerHealth - damageTaken);
-				const newStateBeforeGameOverCheck = {
-					...state,
-					playerHealth: newHealth,
-					isShieldActive: newShieldState
-				};
+				// Shield is not active, apply damage normally
+				const newHealth = Math.max(0, state.playerHealth - damageAmount);
+				console.log(`Player HP Updated: ${newHealth}`); // Log HP on damage
 
 				if (newHealth <= 0) {
-					setTimeout(() => setGameOver('Defeat!'), 0);
+					// Use setGameOverInternal directly to ensure immediate state change
+					console.log(`Player HP Updated: ${newHealth} (Defeated)`); // Log HP on defeat
+
+					// Don't use setTimeout here to ensure immediate state change
+					// The game over state needs to be set right away, not asynchronously
 					return {
-						...newStateBeforeGameOverCheck,
+						...state,
+						playerHealth: 0,
 						gameStatus: GameStatus.GAME_OVER,
-						resultMessage: 'Defeat!'
+						resultMessage: 'Player Defeated!'
 					};
+				} else {
+					return { ...state, playerHealth: newHealth };
 				}
-				return newStateBeforeGameOverCheck;
 			}),
 		activateShield: () =>
 			update((state) => {
@@ -513,7 +555,53 @@ export function createGameplayActions(
 							intermediateState.enemyJustDefeated = true; // Set flag ONLY
 						}
 					} else if (initialStateForCast.selectedSpell === 'ICE') {
+						// Clear existing shield timer before starting a new one
+						if (state.shieldTimerIntervalId) {
+							clearInterval(state.shieldTimerIntervalId);
+						}
+						// Activate shield and set initial duration
 						intermediateState.isShieldActive = true;
+						intermediateState.shieldDurationRemaining = SHIELD_DURATION_MS;
+						intermediateState.shieldTimerIntervalId = null; // Will be set by the timeout action
+
+						// Action to start the interval (called via setTimeout)
+						const startShieldTimerAction = () => {
+							update((currentState) => {
+								// Double-check: shield might have been cleared between cast and timer start
+								if (!currentState.isShieldActive || currentState.shieldTimerIntervalId !== null) {
+									return currentState;
+								}
+
+								const intervalId = setInterval(() => {
+									update((timerState) => {
+										// If shield was deactivated externally or duration is null, clear interval
+										if (!timerState.isShieldActive || timerState.shieldDurationRemaining === null) {
+											clearInterval(intervalId);
+											// Ensure state reflects cleared shield
+											return { ...timerState, ...clearShieldState(timerState) };
+										}
+
+										const newRemaining =
+											timerState.shieldDurationRemaining - SHIELD_TIMER_INTERVAL_MS;
+
+										if (newRemaining <= 0) {
+											// Shield expired, clear interval and state
+											clearInterval(intervalId);
+											return { ...timerState, ...clearShieldState(timerState) };
+										} else {
+											// Update remaining time
+											return { ...timerState, shieldDurationRemaining: newRemaining };
+										}
+									});
+								}, SHIELD_TIMER_INTERVAL_MS);
+
+								// Store the interval ID in the state
+								return { ...currentState, shieldTimerIntervalId: intervalId as unknown as number };
+							});
+						};
+
+						// Use setTimeout to ensure the state update happens before the interval starts
+						setTimeout(startShieldTimerAction, 0);
 					}
 				} else {
 					// Incorrect answer
@@ -578,6 +666,7 @@ export function createGameplayActions(
 						if (newPlayerHealth <= 0) {
 							// Player is defeated due to penalty
 							setTimeout(() => setGameOver('Defeated by Mistakes!'), 0);
+							console.log(`Player HP Updated: ${newPlayerHealth} (Defeated by Mistakes)`);
 							intermediateState.gameStatus = GameStatus.GAME_OVER;
 							intermediateState.resultMessage = 'Defeated by Mistakes!';
 						}
@@ -621,6 +710,11 @@ export function createGameplayActions(
 					return finalState;
 				}
 				return intermediateState;
+			}),
+		clearShieldState: () =>
+			update((state) => {
+				// Directly return the result of the helper function merged with the state
+				return { ...state, ...clearShieldState(state) };
 			})
 	};
 }

@@ -55,6 +55,8 @@ export interface ArenaState {
 		steps: string[];
 	} | null;
 	crafterFeedbackTimeoutId: number | null;
+	shieldDurationRemaining: number | null;
+	shieldTimerIntervalId: number | null;
 }
 
 export const initialArenaState: ArenaState = {
@@ -92,7 +94,9 @@ export const initialArenaState: ArenaState = {
 	consecutiveWrongAnswers: 0,
 	showCrafterFeedback: false,
 	crafterFeedbackDetails: null,
-	crafterFeedbackTimeoutId: null
+	crafterFeedbackTimeoutId: null,
+	shieldDurationRemaining: null,
+	shieldTimerIntervalId: null
 };
 
 // --- Store Creation Logic ---

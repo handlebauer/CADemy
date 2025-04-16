@@ -34,6 +34,7 @@ export const CRAFTER_FEEDBACK_DISPLAY_DURATION = 4_000; // ms duration for craft
 export const FIRE_DAMAGE = 25; // Base damage inflicted by FIRE spell (can be modified by bonuses)
 export const WRONG_ANSWER_HEALTH_PENALTY = 10; // Health penalty for wrong answer
 export const WRONG_ANSWER_PENALTY_TOLERANCE = 0; // Number of wrong answers allowed before penalty
+export const SHIELD_DURATION_MS = 10_000; // Default duration for ICE shield (10 seconds)
 
 // --- Tweakpane Dev Config ---
 
@@ -69,5 +70,10 @@ export const equationArenaTweakpaneBindings: TweakpaneConfigBinding[] = [
 		key: 'WRONG_ANSWER_PENALTY_TOLERANCE',
 		options: { label: 'Wrong Answer Tolerance', min: 0, max: 10, step: 1 },
 		folderTitle: 'Damage'
+	},
+	{
+		key: 'SHIELD_DURATION_MS',
+		options: { label: 'Shield Duration (ms)', min: 1000, max: 30000, step: 500 },
+		folderTitle: 'Timings'
 	}
 ];

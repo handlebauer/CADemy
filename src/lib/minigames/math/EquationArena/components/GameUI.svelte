@@ -62,6 +62,11 @@
 		correctVal: number | null;
 		steps: string[];
 	} | null = null;
+	export let playerHit: boolean = false;
+	export let damageTaken: number | null = null;
+	export let isEnemyTelegraphing: boolean = false;
+	export let shieldTimeRemaining: number | null = null;
+	export let shieldBlockedHit: boolean = false;
 
 	// --- Event Handlers ---
 	// Bubble up the selectSpell event from the child component
@@ -132,7 +137,15 @@
 <!-- Game UI Layout -->
 <div class="equation-arena-container" class:shake={false} class:shake-shield={false}>
 	<!-- Use the new TopBar component -->
-	<TopBar {playerHealth} {isShieldActive} {gameTime} {formattedTime} />
+	<TopBar
+		{playerHealth}
+		{isShieldActive}
+		{gameTime}
+		{formattedTime}
+		{playerHit}
+		{damageTaken}
+		{shieldBlockedHit}
+	/>
 
 	<!-- Enemy Display Component -->
 	<EnemyDisplay
@@ -144,10 +157,16 @@
 		{lastAnswerCorrect}
 		{activeBonuses}
 		{gameStatus}
+		{isEnemyTelegraphing}
 	/>
 
 	<!-- Use the new SpellSelection component -->
-	<SpellSelection {selectedSpell} on:selectSpell={handleSelectSpellEvent} />
+	<SpellSelection
+		{selectedSpell}
+		{isShieldActive}
+		{shieldTimeRemaining}
+		on:selectSpell={handleSelectSpellEvent}
+	/>
 
 	<!-- Equation Display -->
 	<div
