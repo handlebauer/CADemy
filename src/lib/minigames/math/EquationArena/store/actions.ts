@@ -189,7 +189,9 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 			...shieldClearedState,
 			gameStatus: GameStatus.GAME_OVER,
 			resultMessage: message,
-			activeBonuses: [] // Clear bonuses on game over
+			activeBonuses: [], // Clear active bonuses on game over
+			usedCraftedEquations: new Set<string>() // Clear used equations
+			// Keep totalBonusesApplied for final score/summary
 		};
 	};
 
@@ -202,7 +204,10 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 					...initialArenaState,
 					...shieldClearedState,
 					needsCrafterTutorial: state.needsCrafterTutorial,
-					enemyJustDefeated: false
+					enemyJustDefeated: false,
+					usedCraftedEquations: new Set<string>(),
+					currentLevelBonuses: [], // Reset
+					totalBonusesApplied: [] // Reset
 				};
 				console.log(`Player HP Reset: ${newState.playerHealth}`);
 				return newState;
@@ -211,7 +216,14 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 			update((state) => {
 				// Clear shield timer on full reset
 				const shieldClearedState = clearShieldState(state);
-				return { ...initialArenaState, ...shieldClearedState, enemyJustDefeated: false };
+				return {
+					...initialArenaState,
+					...shieldClearedState,
+					enemyJustDefeated: false,
+					usedCraftedEquations: new Set<string>(),
+					currentLevelBonuses: [], // Reset
+					totalBonusesApplied: [] // Reset
+				};
 			}),
 		setGrade: (grade: GradeLevel) =>
 			update((state) => {
@@ -264,7 +276,10 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 					selectedSpell: state.selectedSpell || 'FIRE',
 					tutorialStep: 0,
 					needsCrafterTutorial: state.needsCrafterTutorial,
-					enemyJustDefeated: false // Reset on start
+					enemyJustDefeated: false,
+					usedCraftedEquations: new Set<string>(),
+					currentLevelBonuses: [], // Reset level bonuses
+					totalBonusesApplied: [] // Reset total bonuses
 				};
 				switch (state.gameMode) {
 					case 'solver': {
@@ -289,7 +304,9 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 							isCraftingPhase: true,
 							craftedEquationString: '',
 							allowedCrafterChars: levelConfig.allowedChars,
-							isCraftedEquationValidForLevel: false
+							isCraftedEquationValidForLevel: false,
+							currentLevelBonuses: [], // Reset level bonuses
+							totalBonusesApplied: [] // Reset total bonuses
 						};
 						console.log(`Player HP Started (Crafter): ${newState.playerHealth}`);
 						return newState;
@@ -322,7 +339,11 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 						selectedGrade: state.selectedGrade,
 						gameMode: state.gameMode,
 						gameStatus: GameStatus.PRE_GAME,
-						resultMessage: `All levels completed for ${state.gameMode}!`
+						resultMessage: `All levels completed for ${state.gameMode}!`,
+						needsCrafterTutorial: state.needsCrafterTutorial,
+						usedCraftedEquations: new Set<string>(),
+						currentLevelBonuses: [] // Reset level bonuses
+						// Don't reset totalBonusesApplied here
 					};
 				}
 				const baseNextLevelState: Partial<ArenaState> = {
@@ -338,7 +359,10 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 					startTime: 90,
 					selectedSpell: state.selectedSpell || 'FIRE',
 					tutorialStep: 0,
-					needsCrafterTutorial: state.needsCrafterTutorial
+					needsCrafterTutorial: state.needsCrafterTutorial,
+					usedCraftedEquations: new Set<string>(),
+					currentLevelBonuses: [], // Reset level bonuses for new level
+					totalBonusesApplied: state.totalBonusesApplied // IMPORTANT: Preserve total bonuses
 				};
 				switch (state.gameMode) {
 					case 'solver':
@@ -353,7 +377,10 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 							return {
 								...state,
 								gameStatus: GameStatus.PRE_GAME,
-								resultMessage: `Error: Level ${nextLevelNumber} config missing.`
+								resultMessage: `Error: Level ${nextLevelNumber} config missing.`,
+								usedCraftedEquations: new Set<string>(),
+								currentLevelBonuses: [] // Reset level bonuses
+								// Don't reset totalBonusesApplied here
 							};
 						}
 						return {
@@ -362,7 +389,9 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 							isCraftingPhase: true,
 							craftedEquationString: '',
 							allowedCrafterChars: levelConfig.allowedChars,
-							isCraftedEquationValidForLevel: false
+							isCraftedEquationValidForLevel: false,
+							currentLevelBonuses: [] // Reset level bonuses for new level
+							// Don't reset totalBonusesApplied here
 						};
 					}
 					default:
@@ -485,6 +514,22 @@ export function createGameplayActions(
 					answerIsCorrect = parseFloat(state.playerInput) === state.expectedAnswer;
 					fullEquation = state.currentEquation.replace('?', currentInput);
 				} else if (state.gameMode === 'crafter') {
+					const isEquationUsed = state.usedCraftedEquations.has(state.craftedEquationString);
+					console.log({ equationsUsed: state.usedCraftedEquations });
+					console.log({ isEquationUsed });
+					if (isEquationUsed) {
+						return {
+							...state,
+							evaluationError: 'Equation already used!',
+							gameStatus: GameStatus.RESULT, // Go to result state to show the error
+							lastAnswerCorrect: false, // Treat as incorrect
+							lastPlayerInput: currentInput,
+							lastFullEquation: `${state.craftedEquationString} = ${currentInput}`,
+							playerInput: '',
+							showCrafterFeedback: false, // Hide feedback
+							crafterFeedbackDetails: null
+						};
+					}
 					equationToEvaluate = state.craftedEquationString;
 					evaluationResult = evaluateEquation(equationToEvaluate, state.currentLevelNumber);
 					if (evaluationResult.error) {
@@ -500,6 +545,7 @@ export function createGameplayActions(
 
 				const initialStateForCast = { ...state };
 				const intermediateState = { ...initialStateForCast };
+				const newUsedEquations = new Set(state.usedCraftedEquations); // Copy the set
 
 				// --- Recalculate answerIsCorrect specifically for crafter mode with potential fraction input ---
 				if (state.gameMode === 'crafter') {
@@ -526,6 +572,11 @@ export function createGameplayActions(
 					intermediateState.equationsSolvedCorrectly += 1;
 					intermediateState.consecutiveWrongAnswers = 0; // Reset counter on correct answer
 
+					// --- Add equation to used set for crafter --- //
+					if (intermediateState.gameMode === 'crafter' && expected !== null) {
+						newUsedEquations.add(intermediateState.craftedEquationString);
+					}
+
 					// --- Bonus Calculation (Crafter Mode Only & Correct Answer & Valid Equation) ---
 					if (intermediateState.gameMode === 'crafter' && expected !== null) {
 						currentActiveBonuses = getActiveBonuses(
@@ -535,6 +586,14 @@ export function createGameplayActions(
 							intermediateState.currentLevelNumber,
 							intermediateState.gameMode
 						);
+						intermediateState.currentLevelBonuses = [
+							...intermediateState.currentLevelBonuses,
+							...currentActiveBonuses
+						];
+						intermediateState.totalBonusesApplied = [
+							...intermediateState.totalBonusesApplied,
+							...currentActiveBonuses
+						];
 					} else {
 						// Solver mode or evaluation error - no bonuses from crafting
 						currentActiveBonuses = [];
@@ -612,7 +671,8 @@ export function createGameplayActions(
 						(intermediateState.currentLevelNumber === 1 ||
 							intermediateState.currentLevelNumber === 2 ||
 							intermediateState.currentLevelNumber === 3) && // Include level 3
-						!evaluationResult.error
+						!evaluationResult.error && // Only show if equation itself was valid
+						!initialStateForCast.usedCraftedEquations.has(initialStateForCast.craftedEquationString) // Don't show feedback if it was rejected for reuse
 					) {
 						const correctValue = expected; // Expected numeric value
 						intermediateState.crafterFeedbackDetails = {
@@ -687,7 +747,9 @@ export function createGameplayActions(
 					// Pass feedback state through
 					showCrafterFeedback: intermediateState.showCrafterFeedback,
 					crafterFeedbackDetails: intermediateState.crafterFeedbackDetails,
-					crafterFeedbackTimeoutId: intermediateState.crafterFeedbackTimeoutId
+					crafterFeedbackTimeoutId: intermediateState.crafterFeedbackTimeoutId,
+					// Add the equation to the used set if it was correct (for crafter mode)
+					usedCraftedEquations: newUsedEquations
 				};
 
 				return finalState;

@@ -712,6 +712,7 @@
 				playerHealth={$arenaStore.playerHealth}
 				equationsSolvedCorrectly={$arenaStore.equationsSolvedCorrectly}
 				{formattedTimeTaken}
+				currentLevelBonuses={$arenaStore.currentLevelBonuses}
 				handleExit={handleExitGameEvent}
 				handleNextLevel={handleNextLevelEvent}
 				handleTryAgain={handleTryAgainEvent}

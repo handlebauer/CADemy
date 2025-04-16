@@ -57,6 +57,9 @@ export interface ArenaState {
 	crafterFeedbackTimeoutId: number | null;
 	shieldDurationRemaining: number | null;
 	shieldTimerIntervalId: number | null;
+	usedCraftedEquations: Set<string>;
+	currentLevelBonuses: BonusConfig[];
+	totalBonusesApplied: BonusConfig[];
 }
 
 export const initialArenaState: ArenaState = {
@@ -96,7 +99,10 @@ export const initialArenaState: ArenaState = {
 	crafterFeedbackDetails: null,
 	crafterFeedbackTimeoutId: null,
 	shieldDurationRemaining: null,
-	shieldTimerIntervalId: null
+	shieldTimerIntervalId: null,
+	usedCraftedEquations: new Set<string>(),
+	currentLevelBonuses: [],
+	totalBonusesApplied: []
 };
 
 // --- Store Creation Logic ---
