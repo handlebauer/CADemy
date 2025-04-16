@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import { GameStatus, type SpellType } from '../../types';
+	import {
+		isOperatorAllowed,
+		isOpenParenAllowed,
+		isCloseParenAllowed,
+		isDecimalAllowed
+	} from '../../utils/equationInputValidation'; // Use functions from utility file
 
 	const dispatch = createEventDispatcher<{
 		// Crafting events
@@ -22,82 +28,12 @@
 	export let selectedSpell: SpellType | null;
 	export let craftedEquationString: string; // Equation crafting string
 
-	// New prop for allowed characters
+	// Prop for allowed characters (used by imported validation functions)
 	export let allowedChars: string[] | null = null;
-	// New prop for craft validation
+	// Prop for craft validation (used by submit button)
 	export let isCraftedEquationValidForLevel: boolean = false;
 
-	// --- Input Validation Logic ---
-	const OPERATORS = ['+', '-', '×', '/'];
-
-	$: lastChar = craftedEquationString.slice(-1);
-	$: isLastCharOperator = OPERATORS.includes(lastChar);
-	$: isLastCharOpenParen = lastChar === '(';
-	$: isLastCharCloseParen = lastChar === ')';
-	$: isLastCharDecimal = lastChar === '.';
-	$: isLastCharDigit = /\d/.test(lastChar);
-	$: openParenCount = (craftedEquationString.match(/\(/g) || []).length;
-	$: closeParenCount = (craftedEquationString.match(/\)/g) || []).length;
-
-	function isOperatorAllowed(op: string): boolean {
-		if (!isCraftingPhase) return false; // Not allowed outside crafting
-		if (allowedChars && !allowedChars.includes(op)) return false; // Char not allowed by level
-
-		// Allow leading negative sign
-		if (craftedEquationString === '' && op === '-') return true;
-		if (craftedEquationString === '') return false; // No other leading operators
-
-		// Cannot follow another operator, an opening parenthesis, or a decimal point
-		if (isLastCharOperator || isLastCharOpenParen || isLastCharDecimal) return false;
-
-		return true;
-	}
-
-	function isOpenParenAllowed(): boolean {
-		if (!isCraftingPhase) return false;
-		if (allowedChars && !allowedChars.includes('(')) return false;
-
-		// Cannot follow a digit, a closing parenthesis, an opening parenthesis, or a decimal point
-		if (isLastCharDigit || isLastCharCloseParen || isLastCharOpenParen || isLastCharDecimal)
-			return false;
-
-		return true;
-	}
-
-	function isCloseParenAllowed(): boolean {
-		if (!isCraftingPhase) return false;
-		if (allowedChars && !allowedChars.includes(')')) return false;
-
-		// Must have a matching open parenthesis available
-		if (openParenCount <= closeParenCount) return false;
-		if (craftedEquationString === '') return false;
-
-		// Cannot follow an operator, an opening parenthesis, or a decimal point
-		if (isLastCharOperator || isLastCharOpenParen || isLastCharDecimal) return false;
-
-		return true;
-	}
-
-	function isDecimalAllowed(): boolean {
-		if (!isCraftingPhase) return false;
-		if (allowedChars && !allowedChars.includes('.')) return false;
-
-		if (craftedEquationString === '') return false; // No leading decimal
-
-		// Cannot follow another decimal, an operator, an opening or closing parenthesis
-		if (isLastCharDecimal || isLastCharOperator || isLastCharOpenParen || isLastCharCloseParen)
-			return false;
-
-		// Check if current number segment already has a decimal
-		const lastOperatorOrParenIndex = Math.max(
-			...OPERATORS.map((op) => craftedEquationString.lastIndexOf(op)),
-			craftedEquationString.lastIndexOf('(')
-		);
-		const currentSegment = craftedEquationString.substring(lastOperatorOrParenIndex + 1);
-		if (currentSegment.includes('.')) return false;
-
-		return true;
-	}
+	// Local validation logic has been moved to ../../utils/equationInputValidation.ts
 </script>
 
 <!-- Reworked layout to match iOS calculator style (4 columns) -->
@@ -111,19 +47,21 @@
 		<button
 			class="op-btn special-btn"
 			on:click={() => dispatch('inputChar', '(')}
-			disabled={!isOpenParenAllowed()}
+			disabled={!isCraftingPhase || !isOpenParenAllowed(craftedEquationString, allowedChars)}
 			>(
 		</button>
 		<button
 			class="op-btn special-btn"
 			on:click={() => dispatch('inputChar', ')')}
-			disabled={!isCloseParenAllowed()}>)</button
+			disabled={!isCraftingPhase || !isCloseParenAllowed(craftedEquationString, allowedChars)}
+			>)</button
 		>
 	</div>
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '/')}
-		disabled={!isOperatorAllowed('/')}>÷</button
+		disabled={!isCraftingPhase || !isOperatorAllowed('/', craftedEquationString, allowedChars)}
+		>÷</button
 	>
 
 	<!-- Row 2 -->
@@ -157,7 +95,8 @@
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '×')}
-		disabled={!isOperatorAllowed('×')}>×</button
+		disabled={!isCraftingPhase || !isOperatorAllowed('×', craftedEquationString, allowedChars)}
+		>×</button
 	>
 
 	<!-- Row 3 -->
@@ -191,7 +130,8 @@
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '-')}
-		disabled={!isOperatorAllowed('-')}>-</button
+		disabled={!isCraftingPhase || !isOperatorAllowed('-', craftedEquationString, allowedChars)}
+		>-</button
 	>
 
 	<!-- Row 4 -->
@@ -225,7 +165,8 @@
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '+')}
-		disabled={!isOperatorAllowed('+')}>+</button
+		disabled={!isCraftingPhase || !isOperatorAllowed('+', craftedEquationString, allowedChars)}
+		>+</button
 	>
 
 	<!-- Row 5 -->
@@ -238,8 +179,10 @@
 			!selectedSpell &&
 			gameStatus !== GameStatus.SOLVING}>0</button
 	>
-	<button class="num-btn" on:click={() => dispatch('inputChar', '.')} disabled={!isDecimalAllowed()}
-		>.</button
+	<button
+		class="num-btn"
+		on:click={() => dispatch('inputChar', '.')}
+		disabled={!isCraftingPhase || !isDecimalAllowed(craftedEquationString, allowedChars)}>.</button
 	>
 	<button
 		class="action-btn backspace-btn"

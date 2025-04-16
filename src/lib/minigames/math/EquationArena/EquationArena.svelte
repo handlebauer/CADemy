@@ -19,6 +19,14 @@
 	import { arenaStore, type ArenaState } from './store';
 	import { GameStatus, type SpellType, type GradeLevel, type BonusConfig } from './types';
 
+	// Import the input validation functions
+	import {
+		isOperatorAllowed,
+		isOpenParenAllowed,
+		isCloseParenAllowed,
+		isDecimalAllowed
+	} from './utils/equationInputValidation';
+
 	import './styles/animations.css';
 
 	// Import screen components from new location
@@ -229,9 +237,40 @@
 
 						// Check against allowed characters for the current level BEFORE sending
 						if ($arenaStore.allowedCrafterChars && $arenaStore.allowedCrafterChars.includes(char)) {
-							arenaStore.appendToCraftedEquation(char);
+							let isAllowedByLevel = true;
+							let isInputValid = true;
+
+							// Check against level-specific constraints
+							if (char === '(') {
+								isInputValid = isOpenParenAllowed(
+									$arenaStore.craftedEquationString,
+									$arenaStore.allowedCrafterChars
+								);
+							} else if (char === ')') {
+								isInputValid = isCloseParenAllowed(
+									$arenaStore.craftedEquationString,
+									$arenaStore.allowedCrafterChars
+								);
+							} else if (char === '.') {
+								isInputValid = isDecimalAllowed(
+									$arenaStore.craftedEquationString,
+									$arenaStore.allowedCrafterChars
+								);
+							} else if (['+', '-', '×', '/'].includes(char)) {
+								isInputValid = isOperatorAllowed(
+									char, // op parameter
+									$arenaStore.craftedEquationString,
+									$arenaStore.allowedCrafterChars
+								);
+							}
+
+							// Only append if allowed by level AND syntactically valid
+							if (isAllowedByLevel && isInputValid) {
+								arenaStore.appendToCraftedEquation(char);
+							}
 						}
 					} else if (event.key === 'Enter') {
+						// Don't check validation on Enter, finalizeCrafting handles full validation
 						arenaStore.finalizeCrafting();
 					} else if (event.key === 'Backspace') {
 						arenaStore.backspaceCraftedEquation();
