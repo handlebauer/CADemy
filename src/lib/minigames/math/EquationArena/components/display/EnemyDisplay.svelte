@@ -13,16 +13,19 @@
 </script>
 
 <!-- Enemy Area Markup -->
-<div class="enemy-area">
-	<!-- Direct children for enemy display -->
-	<div class="enemy-icon" class:hit-reaction={enemyHit} class:defeated={enemyDefeatedAnimating}>
-		{currentEnemyConfig?.icon || '🐉'}
+<div class="enemy-area" style:--enemy-color={currentEnemyConfig?.color || '#888'}>
+	<!-- Wrapper for core enemy info -->
+	<div class="enemy-details-box">
+		<div class="enemy-icon" class:hit-reaction={enemyHit} class:defeated={enemyDefeatedAnimating}>
+			{currentEnemyConfig?.icon || '🐉'}
+		</div>
+		<div class="enemy-label">{currentEnemyConfig?.name || 'Enemy'}</div>
+		<progress class="enemy-health-bar" max={currentEnemyConfig?.health || 100} value={enemyHealth}
+		></progress>
+		<div class="enemy-health-text">{enemyHealth}/{currentEnemyConfig?.health || 100}</div>
 	</div>
-	<div class="enemy-label">{currentEnemyConfig?.name || 'Enemy'}</div>
-	<progress class="enemy-health-bar" max={currentEnemyConfig?.health || 100} value={enemyHealth}
-	></progress>
-	<div class="enemy-health-text">{enemyHealth}/{currentEnemyConfig?.health || 100}</div>
-	<!-- Damage & Bonus Display Area -->
+
+	<!-- Damage & Bonus Display Area (outside the box) -->
 	<div class="feedback-overlay">
 		{#if displayedDamage !== null && lastAnswerCorrect}
 			<span class="damage-dealt-text animate-damage">-{displayedDamage}</span>
@@ -45,9 +48,22 @@
 		justify-content: center;
 		align-items: center;
 		width: 100%;
-		gap: 0.25rem;
+		/* gap is now handled by details-box */
 		position: relative;
-		margin-bottom: 2rem;
+		margin-bottom: 1rem;
+		/* Removed padding-bottom and border-bottom */
+	}
+
+	/* New style for the wrapper box */
+	.enemy-details-box {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.25rem; /* Maintain gap for internal items */
+		padding: 0.5rem 0.75rem; /* Add padding */
+		border: 3px solid var(--enemy-color, #888); /* Use variable for border */
+		border-radius: 8px; /* Rounded corners */
+		width: fit-content; /* Adjust width to content */
 	}
 
 	.enemy-icon {

@@ -6,6 +6,7 @@
 		"attackInterval": 10000,
 		"damage": 10,
 		"icon": "🐉",
+		"color": "#8e44ad",
 		"mode": "solver",
 		"level": 1
 	},
@@ -16,6 +17,7 @@
 		"attackInterval": 9000,
 		"damage": 15,
 		"icon": "👁️",
+		"color": "#27ae60",
 		"mode": "crafter",
 		"level": 1
 	},
@@ -26,6 +28,7 @@
 		"attackInterval": 8000,
 		"damage": 18,
 		"icon": "🧩",
+		"color": "#2980b9",
 		"mode": "crafter",
 		"level": 2
 	},
@@ -36,6 +39,7 @@
 		"attackInterval": 7000,
 		"damage": 20,
 		"icon": "💠",
+		"color": "#f39c12",
 		"mode": "crafter",
 		"level": 3
 	}

@@ -24,7 +24,7 @@
 		justify-content: space-between;
 		align-items: center;
 		width: 100%;
-		padding: 0.5rem 1rem;
+		padding: 0 1rem 0.5rem 1rem;
 		box-sizing: border-box;
 		margin-bottom: 1.5rem;
 	}

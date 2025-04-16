@@ -43,6 +43,7 @@ export interface EnemyConfig {
 	damage: number;
 	sprite?: string; // Optional sprite path
 	icon: string; // Add icon property
+	color?: string; // Optional color for UI theming
 	mode: GameMode;
 	level: number;
 }
