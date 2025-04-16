@@ -50,7 +50,7 @@
 		width: 100%;
 		/* gap is now handled by details-box */
 		position: relative;
-		margin-bottom: 1rem;
+		margin-bottom: 1.5rem;
 		/* Removed padding-bottom and border-bottom */
 	}
 

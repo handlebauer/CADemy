@@ -27,9 +27,11 @@
 		justify-content: center;
 		gap: 1rem;
 		width: 100%;
-		margin-bottom: 2rem;
+		margin-bottom: 1.5rem;
 	}
 	.spell-selection button {
+		min-width: 8rem;
+		text-align: center;
 		padding: 0.8rem 1.5rem;
 		font-size: 1rem;
 		border: 2px solid #ccc;
