@@ -11,6 +11,7 @@
 	import EquationDisplay from './display/EquationDisplay.svelte';
 	import SpellSelection from './input/SpellSelection.svelte';
 	import TopBar from './display/TopBar.svelte';
+	import FeedbackOverlay from './FeedbackOverlay.svelte';
 
 	// Update dispatcher types for new crafter events
 	const dispatch = createEventDispatcher<{
@@ -177,45 +178,11 @@
 		</div>
 
 		{#if showCrafterFeedback && crafterFeedbackDetails}
-			<div class="feedback-overlay">
-				<div class="feedback-content">
-					<div class="feedback-inner-box">
-						<p class="feedback-line incorrect-attempt">
-							{#each incorrectAttemptSegments as segment, i (i)}
-								{#if segment.type === 'fraction'}
-									<span class="segment segment-fraction">
-										<span class="fraction">
-											<span class="numerator">{segment.numerator}</span>
-											<span class="denominator">{segment.denominator}</span>
-										</span>
-									</span>
-								{:else}
-									<span class="segment segment-{segment.type}">{segment.value}</span>
-								{/if}
-							{/each}
-						</p>
-						<p class="should-be">should be</p>
-						{#if crafterFeedbackDetails.correctVal !== null}
-							<p class="feedback-line correct-eval">
-								{#each correctSequenceSegments as segment, i (i)}
-									{#if segment.type === 'fraction'}
-										<span class="segment segment-fraction">
-											<span class="fraction">
-												<span class="numerator">{segment.numerator}</span>
-												<span class="denominator">{segment.denominator}</span>
-											</span>
-										</span>
-									{:else}
-										<span class="segment segment-{segment.type}">{segment.value}</span>
-									{/if}
-								{/each}
-							</p>
-						{:else}
-							<p class="feedback-line error-eval">Couldn't evaluate your equation.</p>
-						{/if}
-					</div>
-				</div>
-			</div>
+			<FeedbackOverlay
+				{incorrectAttemptSegments}
+				{correctSequenceSegments}
+				correctVal={crafterFeedbackDetails.correctVal}
+			/>
 		{/if}
 	</div>
 
@@ -361,127 +328,5 @@
 		margin-bottom: 1rem; /* Add space before numpad */
 		max-width: 350px;
 		text-align: center;
-	}
-
-	.feedback-overlay {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		width: 360px;
-		height: auto;
-		background-color: #f8d7da;
-		border: 2px solid #f5c6cb;
-		border-radius: 12px;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		padding: 0.5rem;
-		box-sizing: border-box;
-		z-index: 10;
-		animation: fadeIn 0.3s ease-out;
-		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-	}
-
-	.feedback-content {
-		text-align: center;
-		font-size: 1em;
-		color: #333;
-		width: 100%;
-	}
-
-	.feedback-inner-box {
-		background-color: #ffffff;
-		border-radius: 8px;
-		padding: 1.5rem 1.5rem;
-		margin: 0;
-		box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.05);
-	}
-
-	.feedback-line {
-		margin: 0.5rem 0;
-		font-size: 1.1em;
-		line-height: 1.3;
-	}
-
-	/* ---> ADDITION: Copied Segment Spacing Styles <--- */
-	/* Apply these within the feedback box context */
-	.feedback-inner-box .segment {
-		display: inline-flex;
-		align-items: center;
-		vertical-align: middle;
-		margin: 0; /* Base margin */
-		font-weight: bold; /* Apply bold to all segments */
-		font-family: monospace;
-	}
-
-	.feedback-inner-box .segment-operator {
-		margin: 0 0.2em; /* Space around operators */
-	}
-
-	.feedback-inner-box .segment-paren_open {
-		margin-left: 0.1em;
-		margin-right: 0.05em;
-	}
-
-	.feedback-inner-box .segment-paren_close {
-		margin-left: 0.05em;
-		margin-right: 0.1em;
-	}
-	/* ---> END ADDITION <--- */
-
-	/* ---> ADDITION: Fraction Styling (scoped) <--- */
-	.feedback-inner-box .segment-fraction {
-		margin: 0 0.1em;
-	}
-	.feedback-inner-box .fraction {
-		display: inline-flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		vertical-align: middle;
-		margin: 0 0.1em;
-		line-height: 1;
-	}
-	.feedback-inner-box .numerator {
-		font-size: 0.8em;
-		line-height: 1;
-		padding-bottom: 0.1em;
-	}
-	.feedback-inner-box .denominator {
-		font-size: 0.8em;
-		line-height: 1;
-		border-top: 1.5px solid currentColor;
-		padding-top: 0.1em;
-	}
-	/* ---> END ADDITION <--- */
-
-	/* Style the specific lines */
-	.incorrect-attempt .segment {
-		color: #dc3545; /* Red for incorrect attempt */
-	}
-
-	.correct-eval .segment {
-		color: #000000; /* Black for correct sequence */
-	}
-
-	.feedback-tip {
-		margin-top: 0.4rem;
-	}
-
-	@keyframes fadeIn {
-		from {
-			opacity: 0;
-		}
-		to {
-			opacity: 1;
-		}
-	}
-
-	.should-be {
-		margin: 1rem 0;
-		font-style: italic;
-		font-weight: bold;
-		color: #dc3545;
 	}
 </style>
