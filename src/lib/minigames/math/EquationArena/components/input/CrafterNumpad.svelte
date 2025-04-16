@@ -18,14 +18,86 @@
 	// Props needed for conditional button logic
 	export let gameStatus: GameStatus;
 	export let isCraftingPhase: boolean;
-	export let playerInput: string;
+	export let playerInput: string; // Answer input string
 	export let selectedSpell: SpellType | null;
-	export let craftedEquationString: string;
+	export let craftedEquationString: string; // Equation crafting string
 
 	// New prop for allowed characters
 	export let allowedChars: string[] | null = null;
 	// New prop for craft validation
 	export let isCraftedEquationValidForLevel: boolean = false;
+
+	// --- Input Validation Logic ---
+	const OPERATORS = ['+', '-', '×', '/'];
+
+	$: lastChar = craftedEquationString.slice(-1);
+	$: isLastCharOperator = OPERATORS.includes(lastChar);
+	$: isLastCharOpenParen = lastChar === '(';
+	$: isLastCharCloseParen = lastChar === ')';
+	$: isLastCharDecimal = lastChar === '.';
+	$: isLastCharDigit = /\d/.test(lastChar);
+	$: openParenCount = (craftedEquationString.match(/\(/g) || []).length;
+	$: closeParenCount = (craftedEquationString.match(/\)/g) || []).length;
+
+	function isOperatorAllowed(op: string): boolean {
+		if (!isCraftingPhase) return false; // Not allowed outside crafting
+		if (allowedChars && !allowedChars.includes(op)) return false; // Char not allowed by level
+
+		// Allow leading negative sign
+		if (craftedEquationString === '' && op === '-') return true;
+		if (craftedEquationString === '') return false; // No other leading operators
+
+		// Cannot follow another operator, an opening parenthesis, or a decimal point
+		if (isLastCharOperator || isLastCharOpenParen || isLastCharDecimal) return false;
+
+		return true;
+	}
+
+	function isOpenParenAllowed(): boolean {
+		if (!isCraftingPhase) return false;
+		if (allowedChars && !allowedChars.includes('(')) return false;
+
+		// Cannot follow a digit, a closing parenthesis, an opening parenthesis, or a decimal point
+		if (isLastCharDigit || isLastCharCloseParen || isLastCharOpenParen || isLastCharDecimal)
+			return false;
+
+		return true;
+	}
+
+	function isCloseParenAllowed(): boolean {
+		if (!isCraftingPhase) return false;
+		if (allowedChars && !allowedChars.includes(')')) return false;
+
+		// Must have a matching open parenthesis available
+		if (openParenCount <= closeParenCount) return false;
+		if (craftedEquationString === '') return false;
+
+		// Cannot follow an operator, an opening parenthesis, or a decimal point
+		if (isLastCharOperator || isLastCharOpenParen || isLastCharDecimal) return false;
+
+		return true;
+	}
+
+	function isDecimalAllowed(): boolean {
+		if (!isCraftingPhase) return false;
+		if (allowedChars && !allowedChars.includes('.')) return false;
+
+		if (craftedEquationString === '') return false; // No leading decimal
+
+		// Cannot follow another decimal, an operator, an opening or closing parenthesis
+		if (isLastCharDecimal || isLastCharOperator || isLastCharOpenParen || isLastCharCloseParen)
+			return false;
+
+		// Check if current number segment already has a decimal
+		const lastOperatorOrParenIndex = Math.max(
+			...OPERATORS.map((op) => craftedEquationString.lastIndexOf(op)),
+			craftedEquationString.lastIndexOf('(')
+		);
+		const currentSegment = craftedEquationString.substring(lastOperatorOrParenIndex + 1);
+		if (currentSegment.includes('.')) return false;
+
+		return true;
+	}
 </script>
 
 <!-- Reworked layout to match iOS calculator style (4 columns) -->
@@ -39,97 +111,135 @@
 		<button
 			class="op-btn special-btn"
 			on:click={() => dispatch('inputChar', '(')}
-			disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('('))}
+			disabled={!isOpenParenAllowed()}
 			>(
 		</button>
 		<button
 			class="op-btn special-btn"
 			on:click={() => dispatch('inputChar', ')')}
-			disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes(')'))}>)</button
+			disabled={!isCloseParenAllowed()}>)</button
 		>
 	</div>
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '/')}
-		disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('/'))}>÷</button
+		disabled={!isOperatorAllowed('/')}>÷</button
 	>
 
 	<!-- Row 2 -->
 	<button
 		class="num-btn"
 		on:click={() =>
-			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '7' : 7)}>7</button
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '7' : 7)}
+		disabled={!isCraftingPhase &&
+			playerInput === '' &&
+			!selectedSpell &&
+			gameStatus !== GameStatus.SOLVING}>7</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
-			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '8' : 8)}>8</button
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '8' : 8)}
+		disabled={!isCraftingPhase &&
+			playerInput === '' &&
+			!selectedSpell &&
+			gameStatus !== GameStatus.SOLVING}>8</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
-			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '9' : 9)}>9</button
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '9' : 9)}
+		disabled={!isCraftingPhase &&
+			playerInput === '' &&
+			!selectedSpell &&
+			gameStatus !== GameStatus.SOLVING}>9</button
 	>
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '×')}
-		disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('×'))}>×</button
+		disabled={!isOperatorAllowed('×')}>×</button
 	>
 
 	<!-- Row 3 -->
 	<button
 		class="num-btn"
 		on:click={() =>
-			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '4' : 4)}>4</button
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '4' : 4)}
+		disabled={!isCraftingPhase &&
+			playerInput === '' &&
+			!selectedSpell &&
+			gameStatus !== GameStatus.SOLVING}>4</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
-			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '5' : 5)}>5</button
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '5' : 5)}
+		disabled={!isCraftingPhase &&
+			playerInput === '' &&
+			!selectedSpell &&
+			gameStatus !== GameStatus.SOLVING}>5</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
-			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '6' : 6)}>6</button
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '6' : 6)}
+		disabled={!isCraftingPhase &&
+			playerInput === '' &&
+			!selectedSpell &&
+			gameStatus !== GameStatus.SOLVING}>6</button
 	>
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '-')}
-		disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('-'))}>-</button
+		disabled={!isOperatorAllowed('-')}>-</button
 	>
 
 	<!-- Row 4 -->
 	<button
 		class="num-btn"
 		on:click={() =>
-			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '1' : 1)}>1</button
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '1' : 1)}
+		disabled={!isCraftingPhase &&
+			playerInput === '' &&
+			!selectedSpell &&
+			gameStatus !== GameStatus.SOLVING}>1</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
-			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '2' : 2)}>2</button
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '2' : 2)}
+		disabled={!isCraftingPhase &&
+			playerInput === '' &&
+			!selectedSpell &&
+			gameStatus !== GameStatus.SOLVING}>2</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
-			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '3' : 3)}>3</button
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '3' : 3)}
+		disabled={!isCraftingPhase &&
+			playerInput === '' &&
+			!selectedSpell &&
+			gameStatus !== GameStatus.SOLVING}>3</button
 	>
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '+')}
-		disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('+'))}>+</button
+		disabled={!isOperatorAllowed('+')}>+</button
 	>
 
 	<!-- Row 5 -->
 	<button
 		class="num-btn zero-btn"
 		on:click={() =>
-			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '0' : 0)}>0</button
+			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '0' : 0)}
+		disabled={!isCraftingPhase &&
+			playerInput === '' &&
+			!selectedSpell &&
+			gameStatus !== GameStatus.SOLVING}>0</button
 	>
-	<button
-		class="num-btn"
-		on:click={() => dispatch('inputChar', '.')}
-		disabled={!isCraftingPhase || (allowedChars && !allowedChars.includes('.'))}>.</button
+	<button class="num-btn" on:click={() => dispatch('inputChar', '.')} disabled={!isDecimalAllowed()}
+		>.</button
 	>
 	<button
 		class="action-btn backspace-btn"
