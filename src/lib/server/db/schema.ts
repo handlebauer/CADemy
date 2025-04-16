@@ -5,7 +5,7 @@ import { timestamp, pgTable, text, primaryKey, integer } from 'drizzle-orm/pg-co
 // export const user = pgTable('user', { ... });
 // export const session = pgTable('session', { ... });
 
-export const users = pgTable('user', {
+export const users = pgTable('users', {
 	// Table name often 'user' or 'users'
 	id: text('id')
 		.primaryKey()
