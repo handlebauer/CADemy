@@ -30,7 +30,7 @@ export interface ArenaState {
 	lastPlayerInput: string;
 	lastFullEquation: string;
 	equationsSolvedCorrectly: number;
-	isShieldActive: boolean;
+	isTimerFrozen: boolean;
 	currentOperationType: OperationType;
 	currentLevelNumber: number;
 	selectedGrade: GradeLevel | null;
@@ -55,8 +55,7 @@ export interface ArenaState {
 		steps: string[];
 	} | null;
 	crafterFeedbackTimeoutId: number | null;
-	shieldDurationRemaining: number | null;
-	shieldTimerIntervalId: number | null;
+	timerFreezeDurationRemaining: number | null;
 	usedCraftedEquations: Set<string>;
 	currentLevelBonuses: BonusConfig[];
 	totalBonusesApplied: BonusConfig[];
@@ -86,7 +85,7 @@ export const initialArenaState: ArenaState = {
 	lastPlayerInput: '',
 	lastFullEquation: '',
 	equationsSolvedCorrectly: 0,
-	isShieldActive: false,
+	isTimerFrozen: false,
 	currentOperationType: OperationType.ADDITION,
 	currentLevelNumber: 1,
 	selectedGrade: null,
@@ -106,8 +105,7 @@ export const initialArenaState: ArenaState = {
 	showCrafterFeedback: false,
 	crafterFeedbackDetails: null,
 	crafterFeedbackTimeoutId: null,
-	shieldDurationRemaining: null,
-	shieldTimerIntervalId: null,
+	timerFreezeDurationRemaining: null,
 	usedCraftedEquations: new Set<string>(),
 	currentLevelBonuses: [],
 	totalBonusesApplied: [],

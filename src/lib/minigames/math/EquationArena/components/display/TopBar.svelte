@@ -1,30 +1,41 @@
 <script lang="ts">
 	export let playerHealth: number;
-	export let isShieldActive: boolean;
 	export let attackTimeRemaining: number;
 	export let maxAttackTime: number;
 	export let formattedTime: string;
-	export let playerHit: boolean = false;
 	export let damageTaken: number | null = null;
-	export let shieldBlockedHit: boolean = false;
+	export let waitingForPlayerStart: boolean = false;
+	export let isTimerFrozen: boolean = false;
+
+	// Use explicit function to handle player hit effect
+	let playerHitEffect = false;
+	let playerHitTimeout: number | null = null;
+
+	function updatePlayerHitEffect() {
+		if (damageTaken !== null) {
+			playerHitEffect = true;
+			if (playerHitTimeout) clearTimeout(playerHitTimeout);
+
+			playerHitTimeout = setTimeout(() => {
+				playerHitEffect = false;
+			}, 600); // Duration matches animation
+		}
+	}
+
+	// Watch for changes in damageTaken without creating a loop
+	$: if (damageTaken !== null) updatePlayerHitEffect();
 </script>
 
 <div class="top-bar">
 	<div class="status-container health-player">
-		<span class="icon heart-icon" class:heart-shake={playerHit}>❤️</span>
-		<div
-			class="bar-container player-health-bar-container"
-			class:shield-active={isShieldActive}
-			class:player-hit-flash={playerHit}
-		>
+		<span class="icon heart-icon" class:heart-shake={playerHitEffect}>❤️</span>
+		<div class="bar-container player-health-bar-container" class:player-hit-flash={playerHitEffect}>
 			<div class="bar-fill player-health-bar-fill" style="width: {playerHealth}%;"></div>
 		</div>
 		<span class="value-text player-health-value">{playerHealth}/100</span>
-		{#if (playerHit && damageTaken !== null) || shieldBlockedHit}
-			<span class="damage-taken-text animate-player-damage" class:blocked={shieldBlockedHit}>
-				{#if shieldBlockedHit}
-					-0
-				{:else if damageTaken !== null}
+		{#if playerHitEffect && damageTaken !== null}
+			<span class="damage-taken-text animate-player-damage">
+				{#if damageTaken !== null}
 					-{damageTaken}
 				{/if}
 			</span>
@@ -33,13 +44,18 @@
 
 	<div
 		class="status-container timer"
-		class:low-time={attackTimeRemaining > 0 && attackTimeRemaining <= maxAttackTime * 0.3}
+		class:low-time={!waitingForPlayerStart &&
+			attackTimeRemaining > 0 &&
+			attackTimeRemaining <= maxAttackTime * 0.3}
+		class:frozen={isTimerFrozen}
 	>
-		<span class="icon timer-icon">⏱️</span>
+		<span class="icon timer-icon" class:pulse-frozen={isTimerFrozen}>⏱️</span>
 		<div class="bar-container attack-timer-bar-container">
 			<div
 				class="bar-fill attack-timer-bar-fill"
-				style="width: {(attackTimeRemaining / maxAttackTime) * 100}%;"
+				style="width: {waitingForPlayerStart
+					? '100'
+					: (attackTimeRemaining / maxAttackTime) * 100}%;"
 			></div>
 		</div>
 		<span class="value-text timer-text">{formattedTime.replace('Time: ', '')}</span>
@@ -103,7 +119,7 @@
 	.player-health-bar-container {
 		border: 2px solid #e74c3c;
 		background-color: #f8d7da;
-		transition: border-color 0.3s ease;
+		transition: box-shadow 0.3s ease; /* Keep transition for hit flash */
 	}
 
 	/* Timer bar specific */
@@ -151,16 +167,6 @@
 		animation: player-bar-flash 0.4s ease-out;
 	}
 
-	.player-health-bar-container.shield-active {
-		border-color: #3498db;
-		box-shadow: 0 0 6px rgba(52, 152, 219, 0.6);
-		animation: pulse-shield-bar 1.5s infinite ease-in-out;
-	}
-
-	.player-health-bar-container.player-hit-flash.shield-active {
-		animation: player-bar-flash 0.4s ease-out;
-	}
-
 	.damage-taken-text {
 		position: absolute;
 		top: 50%;
@@ -173,10 +179,6 @@
 		white-space: nowrap;
 		opacity: 0;
 		pointer-events: none;
-	}
-
-	.damage-taken-text.blocked {
-		color: #3498db;
 	}
 
 	.timer.low-time {
@@ -192,6 +194,19 @@
 		background-color: #e74c3c;
 	}
 
+	.timer.frozen {
+		color: #2980b9; /* Darker blue for frozen text */
+		background-color: rgba(52, 152, 219, 0.2); /* Slightly darker bg */
+	}
+
+	.timer.frozen .attack-timer-bar-container {
+		border-color: #2980b9;
+	}
+
+	.timer-icon.pulse-frozen {
+		animation: pulse-frozen-icon 1.2s infinite ease-in-out;
+	}
+
 	@keyframes low-time-pulse {
 		0%,
 		100% {
@@ -204,15 +219,15 @@
 		}
 	}
 
-	@keyframes pulse-shield-bar {
-		0% {
-			box-shadow: 0 0 3px rgba(52, 152, 219, 0.4);
+	@keyframes pulse-frozen-icon {
+		0%,
+		100% {
+			transform: scale(1);
+			opacity: 1;
 		}
 		50% {
-			box-shadow: 0 0 10px rgba(52, 152, 219, 0.8);
-		}
-		100% {
-			box-shadow: 0 0 3px rgba(52, 152, 219, 0.4);
+			transform: scale(1.2);
+			opacity: 0.7;
 		}
 	}
 

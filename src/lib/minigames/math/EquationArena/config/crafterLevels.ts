@@ -77,7 +77,7 @@ function isSyntacticallySound(eq: string): boolean {
 export const crafterLevelConfigs: CrafterLevelConfig[] = [
 	{
 		level: 1,
-		description: 'Create some equations!',
+		description: 'Craft some equations!',
 		allowedChars: [...numbers, '+', '-', '×', '/', '(', ')'],
 		validate: (equation: string): boolean => {
 			const trimmed = equation.trim();
@@ -87,7 +87,7 @@ export const crafterLevelConfigs: CrafterLevelConfig[] = [
 	},
 	{
 		level: 2,
-		description: 'Those denominators are so unlike-able',
+		description: 'Unlike denominators only!',
 		allowedChars: [...numbers, '+', '-', '/'], // Division instead of multiplication
 		validate: (equation: string): boolean => {
 			const trimmed = equation.trim();
@@ -118,7 +118,7 @@ export const crafterLevelConfigs: CrafterLevelConfig[] = [
 	},
 	{
 		level: 3,
-		description: 'Create an equation using decimals and division.',
+		description: 'Craft with decimals only!',
 		allowedChars: [...numbers, '+', '-', '×', '/', '.'], // Multiplication, division and decimal
 		validate: (equation: string): boolean => {
 			const trimmed = equation.trim();

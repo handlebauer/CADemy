@@ -1,5 +1,5 @@
 import { getCrafterLevelConfig } from '../config/crafterLevels';
-import { grades, enemies, SHIELD_DURATION_MS } from '../config/index';
+import { grades, enemies, TIMER_FREEZE_DURATION_MS } from '../config/index';
 import { evaluateEquation } from '../utils/math';
 import { evaluate } from 'mathjs';
 import { getActiveBonuses } from '../config/bonusLogic';
@@ -24,7 +24,6 @@ type StoreSetter = (value: ArenaState) => void;
 // Helper type for setGameOverInternal
 type SetGameOverInternalFn = (state: ArenaState, message: string) => ArenaState;
 
-const SHIELD_TIMER_INTERVAL_MS = 100; // Update timer every 100ms
 const MAX_LEVEL = 3; // Define the maximum level for the game
 
 // Scoring Constants
@@ -33,15 +32,11 @@ const SCORE_BONUS_FIRST_USE = 25;
 const SCORE_BONUS_REPEAT_USE = 10;
 const SCORE_COMPLETION_BONUS = 50;
 
-// Helper function to clear shield state and timer
-function clearShieldState(state: ArenaState): Partial<ArenaState> {
-	if (state.shieldTimerIntervalId) {
-		clearInterval(state.shieldTimerIntervalId);
-	}
+// Helper function to clear timer freeze state
+function clearTimerFreezeState(_state: ArenaState): Partial<ArenaState> {
 	return {
-		isShieldActive: false,
-		shieldDurationRemaining: null,
-		shieldTimerIntervalId: null
+		isTimerFrozen: false,
+		timerFreezeDurationRemaining: null
 	};
 }
 
@@ -230,11 +225,11 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 	// Helper function to avoid duplicating setGameOver logic
 	const setGameOverInternal: SetGameOverInternalFn = (state, message) => {
 		// Ensure timers are implicitly stopped by changing the status
-		// Clear shield timer explicitly
-		const shieldClearedState = clearShieldState(state);
+		// Clear timer freeze state explicitly
+		const freezeClearedState = clearTimerFreezeState(state);
 		return {
 			...state,
-			...shieldClearedState,
+			...freezeClearedState,
 			gameStatus: GameStatus.GAME_OVER,
 			playerHealth: 0,
 			resultMessage: message,
@@ -249,43 +244,31 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 	return {
 		reset: () =>
 			update((state) => {
-				// Clear shield timer on reset
-				const shieldClearedState = clearShieldState(state);
 				// Clear feedback timeout
 				if (state.feedbackTimeoutId) {
 					clearTimeout(state.feedbackTimeoutId);
 				}
-				// Also clear the old crafter feedback timeout just in case
-				if (state.crafterFeedbackTimeoutId) {
-					clearTimeout(state.crafterFeedbackTimeoutId);
-				}
+				// Reset to initial state but preserve grade/mode/tutorial state
 				const newState = {
-					...initialArenaState, // Resets score fields to initial values
-					...shieldClearedState,
-					needsCrafterTutorial: state.needsCrafterTutorial,
-					// Ensure feedback state is reset
-					isFeedbackActive: false,
-					feedbackTimeoutId: null,
-					crafterFeedbackTimeoutId: null,
-					evaluationError: null,
-					showCrafterFeedback: false,
-					crafterFeedbackDetails: null,
-					enemyJustDefeated: false,
-					// Explicitly ensure scoring fields are reset by initialArenaState
-					usedCraftedEquations: new Set<string>(),
-					currentLevelBonuses: [],
-					totalBonusesApplied: []
+					...initialArenaState, // Resets score fields, timer freeze, etc.
+					// Keep grade/mode selection
+					selectedGrade: state.selectedGrade,
+					gameMode: state.gameMode,
+					// Reset tutorial state based on mode
+					needsCrafterTutorial: state.gameMode === 'crafter',
+					tutorialStep: 0 // Always reset tutorial step on game reset
+					// Ensure feedback state is reset (covered by initialArenaState)
 				};
-				console.log(`Player HP Reset: ${newState.playerHealth}`);
+				console.log(`Player HP Reset: ${newState.playerHealth}`); // Debug log
 				return newState;
 			}),
 		fullReset: () =>
 			update((state) => {
-				// Clear shield timer on full reset
-				const shieldClearedState = clearShieldState(state);
+				// Clear timer freeze state on full reset
+				const freezeClearedState = clearTimerFreezeState(state);
 				return {
 					...initialArenaState, // Resets score fields to initial values
-					...shieldClearedState,
+					...freezeClearedState,
 					enemyJustDefeated: false
 					// Explicitly ensure scoring fields are reset by initialArenaState
 				};
@@ -552,16 +535,16 @@ export function createEntityActions(
 				if (state.gameStatus !== GameStatus.SOLVING && state.gameStatus !== GameStatus.RESULT)
 					return state;
 
-				// Check if shield is active *before* applying damage
-				if (state.isShieldActive) {
-					console.log('Shield absorbed damage!');
-					// Shield blocks damage, playerHealth remains unchanged
-					// Clear the shield state and timer
-					const shieldClearedState = clearShieldState(state);
-					return { ...state, ...shieldClearedState };
+				// Check if timer freeze is active *before* applying damage
+				if (state.isTimerFrozen) {
+					console.log('Timer freeze absorbed damage!');
+					// Timer freeze blocks damage, playerHealth remains unchanged
+					// Clear the timer freeze state
+					const freezeClearedState = clearTimerFreezeState(state);
+					return { ...state, ...freezeClearedState };
 				}
 
-				// Shield is not active, apply damage normally
+				// Timer freeze is not active, apply damage normally
 				const newHealth = Math.max(0, state.playerHealth - damageAmount);
 				console.log(`Player HP Updated: ${newHealth}`); // Log HP on damage
 
@@ -576,13 +559,13 @@ export function createEntityActions(
 		activateShield: () =>
 			update((state) => {
 				if (state.gameStatus !== GameStatus.SOLVING) return state;
-				// Prevent activating shield if already active
-				if (state.isShieldActive) return state;
-				// Add logic to start the shield timer (if not already handled elsewhere)
+				// Prevent activating timer freeze if already active
+				if (state.isTimerFrozen) return state;
+				// Add logic to start the timer freeze (if not already handled elsewhere)
 				// This assumes the timer start/management is handled by the caller or another action
-				return { ...state, isShieldActive: true };
+				return { ...state, isTimerFrozen: true };
 			}),
-		deactivateShield: () => update((state) => ({ ...state, ...clearShieldState(state) })), // Use helper
+		deactivateShield: () => update((state) => ({ ...state, ...clearTimerFreezeState(state) })), // Use helper
 		selectSpell: (spell: SpellType) =>
 			update((state) => {
 				// Allow spell selection even in RESULT phase for potential UI feedback
@@ -613,13 +596,32 @@ export function createGameplayActions(
 			}),
 		prepareNextRound: () =>
 			update((state) => {
-				if (
-					state.gameStatus === GameStatus.GAME_OVER ||
-					state.gameStatus === GameStatus.FINAL_SUMMARY
-				)
-					return state;
-				// Call the passed-in helper function
-				return prepareNextRoundInternal(state);
+				if (state.gameStatus !== GameStatus.RESULT) return state;
+
+				// Clear feedback if active
+				if (state.isFeedbackActive && state.feedbackTimeoutId) {
+					clearTimeout(state.feedbackTimeoutId);
+				}
+
+				const nextRoundState = prepareNextRoundInternal(state);
+
+				// Don't clear timer freeze here, let it persist into the next round if active
+
+				return {
+					...nextRoundState,
+					gameStatus: GameStatus.SOLVING,
+					resultMessage: '',
+					lastAnswerCorrect: null,
+					lastSpellCast: null,
+					lastPlayerInput: '',
+					lastFullEquation: '',
+					activeBonuses: [],
+					isFeedbackActive: false, // Ensure feedback is cleared
+					feedbackTimeoutId: null,
+					showCrafterFeedback: false,
+					crafterFeedbackDetails: null,
+					enemyJustDefeated: false
+				};
 			}),
 		castSpell: (
 			wrongAnswerTolerance: number,
@@ -754,47 +756,27 @@ export function createGameplayActions(
 						if (newHealth <= 0) {
 							intermediateState.enemyJustDefeated = true;
 							intermediateState.levelEndTime = Date.now();
-							// Victory finalization (including score update) happens in finalizeVictory action
+						}
+
+						// >> NEW: Check if timer was frozen and reset if FIRE is cast <<
+						if (intermediateState.isTimerFrozen && intermediateState.currentEnemyConfig) {
+							intermediateState = {
+								...intermediateState,
+								...clearTimerFreezeState(intermediateState) // Apply cleared state
+								// Timer reset will happen in handleNextRoundSequence via startAttackTimer
+							};
 						}
 					} else if (initialStateForCast.selectedSpell === 'ICE') {
-						if (intermediateState.shieldTimerIntervalId) {
-							clearInterval(intermediateState.shieldTimerIntervalId);
+						if (intermediateState.isTimerFrozen) {
+							console.log('Timer freeze absorbed damage!');
+							// Timer freeze blocks damage, playerHealth remains unchanged
+							// Clear the timer freeze state
+							const freezeClearedState = clearTimerFreezeState(intermediateState);
+							intermediateState = { ...intermediateState, ...freezeClearedState };
+						} else {
+							intermediateState.isTimerFrozen = true;
+							intermediateState.timerFreezeDurationRemaining = TIMER_FREEZE_DURATION_MS;
 						}
-						intermediateState.isShieldActive = true;
-						intermediateState.shieldDurationRemaining = SHIELD_DURATION_MS;
-						intermediateState.shieldTimerIntervalId = null; // Will be set by the timer start function
-
-						const startShieldTimerAction = () => {
-							update((currentState) => {
-								// Check again inside the timeout to prevent race conditions
-								if (!currentState.isShieldActive || currentState.shieldTimerIntervalId !== null) {
-									return currentState;
-								}
-
-								const intervalId = setInterval(() => {
-									update((timerState) => {
-										if (!timerState.isShieldActive || timerState.shieldDurationRemaining === null) {
-											clearInterval(intervalId);
-											return { ...timerState, ...clearShieldState(timerState) };
-										}
-
-										const newRemaining =
-											timerState.shieldDurationRemaining - SHIELD_TIMER_INTERVAL_MS;
-
-										if (newRemaining <= 0) {
-											clearInterval(intervalId);
-											return { ...timerState, ...clearShieldState(timerState) };
-										} else {
-											return { ...timerState, shieldDurationRemaining: newRemaining };
-										}
-									});
-								}, SHIELD_TIMER_INTERVAL_MS);
-								// Set the interval ID in the state
-								return { ...currentState, shieldTimerIntervalId: intervalId as unknown as number };
-							});
-						};
-						// Use setTimeout to ensure the timer starts after the current update cycle
-						setTimeout(startShieldTimerAction, 0);
 					}
 
 					// --- Final State Update (Correct Answer) ---
@@ -949,8 +931,12 @@ export function createGameplayActions(
 		},
 		tickAttackTimer: () => {
 			update((state) => {
-				// Prevent ticking if game not solving or feedback active
-				if (state.gameStatus !== GameStatus.SOLVING || state.isFeedbackActive) {
+				// Prevent ticking if timer is frozen, game not solving, or feedback active
+				if (
+					state.isTimerFrozen ||
+					state.gameStatus !== GameStatus.SOLVING ||
+					state.isFeedbackActive
+				) {
 					return state;
 				}
 				const newAttackTimeRemaining = Math.max(0, state.attackTimeRemaining - 0.1);
@@ -962,7 +948,29 @@ export function createGameplayActions(
 		},
 		clearShieldState: () =>
 			update((state) => {
-				return { ...state, ...clearShieldState(state) };
+				return { ...state, ...clearTimerFreezeState(state) };
+			}),
+		// New action to tick the freeze timer
+		tickTimerFreeze: (timeElapsedMs: number) =>
+			update((state) => {
+				if (!state.isTimerFrozen || state.timerFreezeDurationRemaining === null) {
+					return state;
+				}
+
+				const newDuration = state.timerFreezeDurationRemaining - timeElapsedMs;
+
+				if (newDuration <= 0) {
+					return {
+						...state,
+						isTimerFrozen: false,
+						timerFreezeDurationRemaining: null
+					};
+				} else {
+					return {
+						...state,
+						timerFreezeDurationRemaining: newDuration
+					};
+				}
 			})
 	};
 }
