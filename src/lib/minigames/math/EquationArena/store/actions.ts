@@ -180,6 +180,47 @@ export function createCrafterActions(update: StoreUpdater) {
 						: 'Equation does not meet level requirements.';
 					return { ...state, evaluationError: errorMsg };
 				}
+
+				// --- New Duplicate Check ---
+				const isEquationUsed = state.usedCraftedEquations.has(trimmedEquation);
+				if (isEquationUsed) {
+					console.warn('Duplicate equation submitted during crafting!');
+					if (state.feedbackTimeoutId) clearTimeout(state.feedbackTimeoutId); // Clear any existing feedback timer
+
+					const DUPLICATE_FEEDBACK_DURATION = 2000;
+					const newTimeoutId = setTimeout(() => {
+						update((s) => {
+							// Only reset if this specific feedback is still active
+							if (s.isFeedbackActive && s.evaluationError === 'Equation already used!') {
+								return {
+									...s,
+									isFeedbackActive: false,
+									evaluationError: null,
+									feedbackTimeoutId: null,
+									craftedEquationString: '', // Reset equation
+									isCraftedEquationValidForLevel: false // Reset validation
+									// Keep isCraftingPhase = true
+								};
+							}
+							return s; // Return unchanged state otherwise
+						});
+					}, DUPLICATE_FEEDBACK_DURATION);
+
+					// Return the state with feedback active, preventing phase transition
+					return {
+						...state,
+						gameStatus: GameStatus.SOLVING, // Stay solving (in crafting phase)
+						isFeedbackActive: true,
+						evaluationError: 'Equation already used!',
+						feedbackTimeoutId: newTimeoutId as unknown as number,
+						showCrafterFeedback: false, // No detailed feedback for this error
+						crafterFeedbackDetails: null
+						// Keep isCraftingPhase = true
+					};
+				}
+				// --- End New Duplicate Check ---
+
+				// If not duplicate and all other checks passed, transition to solving phase
 				return { ...state, isCraftingPhase: false, playerInput: '', evaluationError: null };
 			})
 	};
@@ -619,35 +660,6 @@ export function createGameplayActions(
 						Math.abs(parseFloat(state.playerInput) - state.expectedAnswer) < tolerance;
 					fullEquation = state.currentEquation.replace('?', currentInput);
 				} else if (state.gameMode === 'crafter') {
-					const isEquationUsed = state.usedCraftedEquations.has(state.craftedEquationString);
-					if (isEquationUsed) {
-						console.warn('Duplicate equation submitted!');
-						if (state.feedbackTimeoutId) clearTimeout(state.feedbackTimeoutId);
-						const DUPLICATE_FEEDBACK_DURATION = 2000;
-						const newTimeoutId = setTimeout(() => {
-							update((s) => {
-								if (s.isFeedbackActive && s.evaluationError === 'Equation already used!') {
-									return {
-										...s,
-										isFeedbackActive: false,
-										evaluationError: null,
-										feedbackTimeoutId: null
-									};
-								}
-								return s;
-							});
-						}, DUPLICATE_FEEDBACK_DURATION);
-						return {
-							...state,
-							gameStatus: GameStatus.SOLVING, // Stay solving
-							isFeedbackActive: true,
-							evaluationError: 'Equation already used!',
-							feedbackTimeoutId: newTimeoutId as unknown as number,
-							// Don't clear input/equation here, let user see mistake
-							showCrafterFeedback: false, // No detailed feedback for this error
-							crafterFeedbackDetails: null
-						};
-					}
 					equationToEvaluate = state.craftedEquationString;
 					evaluationResult = evaluateEquation(equationToEvaluate, state.currentLevelNumber);
 

@@ -66,7 +66,6 @@
 
 	<!-- Display Aggregated Bonuses -->
 	{#if displayedBonuses.length > 0}
-		<h2>Bonuses Applied This Level:</h2>
 		<div class="bonus-cards">
 			{#each displayedBonuses as bonus (bonus.id)}
 				<div class="bonus-badge">
