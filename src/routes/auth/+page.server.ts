@@ -1,49 +1,42 @@
 import type { Actions } from '@sveltejs/kit';
 import { fail, redirect } from '@sveltejs/kit';
-import { api, createUser } from '$lib/auth';
+import { signInEmailHelper, createUser } from '$lib/auth';
 
 export const actions: Actions = {
 	// Login action
-	login: async ({ request }) => {
-		const formData = await request.formData();
+	login: async (event) => {
+		const formData = await event.request.formData();
 		const email = formData.get('email') as string;
 		const password = formData.get('password') as string;
 
 		if (!email || !password) {
 			return fail(400, {
 				success: false,
+				email,
 				error: 'Email and password are required'
 			});
 		}
 
-		try {
-			// Use better-auth's API to sign in with password
-			const result = await api.signIn.email({
-				email,
-				password
-			});
+		// Call the new helper function, passing the event object
+		const result = await signInEmailHelper(event, {
+			email,
+			password
+		});
 
-			if (!result.ok) {
-				// Handle authentication failure
-				return fail(401, {
-					success: false,
-					error: 'Invalid email or password'
-				});
-			}
-
-			return { success: true };
-		} catch (err) {
-			console.error('Login error:', err);
-			return fail(500, {
+		if (!result.success) {
+			return fail(401, {
 				success: false,
-				error: 'An error occurred during login'
+				email,
+				error: result.error ?? 'Invalid email or password'
 			});
 		}
+
+		return { success: true };
 	},
 
 	// Signup action
-	signup: async ({ request }) => {
-		const formData = await request.formData();
+	signup: async (event) => {
+		const formData = await event.request.formData();
 		const email = formData.get('email') as string;
 		const password = formData.get('password') as string;
 		const username = formData.get('username') as string;
@@ -52,43 +45,60 @@ export const actions: Actions = {
 		if (!email || !password || !username) {
 			return fail(400, {
 				success: false,
+				email,
+				username,
+				name,
 				error: 'Email, username, and password are required'
 			});
 		}
 
 		try {
-			// Create the user with our helper function
+			// Create the user first (this might throw if email exists)
 			await createUser(email, password, username, name);
 
-			// Automatically sign in the user after registration
-			const result = await api.signIn.email({
+			// Automatically sign in the user after registration using the helper
+			const signInResult = await signInEmailHelper(event, {
 				email,
 				password
 			});
 
-			if (!result.ok) {
+			if (!signInResult.success) {
 				return fail(500, {
 					success: false,
-					error: 'Account created, but failed to log in. Please login manually.'
+					email,
+					username,
+					name,
+					error:
+						signInResult.error ?? 'Account created, but auto-login failed. Please login manually.'
 				});
 			}
 
 			return { success: true };
 		} catch (err: unknown) {
-			console.error('Signup error:', err);
+			console.error('Signup - createUser error:', err);
 
-			// Check for known error types and provide friendly messages
-			const error = err as Error;
-			if (error.message && error.message.includes('User with this email already exists')) {
+			let errorMessage = 'Failed to create account';
+			if (
+				err instanceof Error &&
+				err.message &&
+				err.message.includes('User with this email already exists')
+			) {
+				errorMessage = 'This email is already registered';
 				return fail(400, {
 					success: false,
-					error: 'This email is already registered'
+					email,
+					username,
+					name,
+					error: errorMessage
 				});
 			}
 
 			return fail(500, {
 				success: false,
-				error: 'Failed to create account'
+				email,
+				username,
+				name,
+				error: errorMessage
 			});
 		}
 	}

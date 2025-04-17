@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { signOut } from 'better-auth/api';
 // CredentialsProvider is not used directly in config based on docs basic usage example
 // import CredentialsProvider from 'better-auth/providers/credentials';
 
@@ -161,8 +162,81 @@ export const auth = betterAuth({
 // Export the handle function for SvelteKit hooks
 export const { handler: handle } = auth;
 
-// Export common auth API functions from the api object
-export const api = auth.api;
+// Re-export the API functions for use in routes
+export { signOut };
+
+// --- ADD New Helper Function for Sign In ---
+import type { RequestEvent } from '@sveltejs/kit';
+import { APIError } from 'better-auth/api';
+
+export async function signInEmailHelper(
+	event: RequestEvent,
+	credentials: { email: string; password: string }
+): Promise<{ success: boolean; error?: string }> {
+	try {
+		const response = await auth.api.signInEmail({
+			body: credentials,
+			headers: event.request.headers, // Pass headers for context (IP, etc.) and cookie setting
+			asResponse: true // Get the full Response object to handle cookies
+		});
+
+		if (!response.ok) {
+			// Attempt to parse error from better-auth response body if possible
+			let errorMessage = 'Invalid email or password';
+			try {
+				const errorBody = await response.json();
+				if (errorBody.message) {
+					errorMessage = errorBody.message;
+				}
+				// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			} catch (_e) {
+				// Ignore if body isn't JSON or doesn't have message
+			}
+			console.error('Better Auth Sign In Error:', response.status, errorMessage);
+			return { success: false, error: errorMessage };
+		}
+
+		// Manually set cookies from the response headers on the event locals/cookies
+		const setCookieHeader = response.headers.get('set-cookie');
+		if (setCookieHeader) {
+			// SvelteKit's event.cookies.set can handle multiple cookies from the header
+			// Note: Parsing and setting cookies manually might be complex.
+			// If better-auth has a SvelteKit plugin/adapter, using that is preferred.
+			// This is a basic attempt assuming direct header manipulation.
+			// You might need a library or more robust parsing if this fails.
+			const cookieStrings = setCookieHeader.split(', ').filter((c) => c.trim() !== '');
+			for (const cookieString of cookieStrings) {
+				const parts = cookieString.split(';')[0].split('=');
+				if (parts.length === 2) {
+					const name = parts[0];
+					const value = parts[1];
+					// Extract options like Path, HttpOnly, Secure, Max-Age, SameSite
+					// For simplicity, setting basic options here. Adjust as needed.
+					event.cookies.set(name, value, {
+						path: '/',
+						httpOnly: true,
+						secure: true,
+						sameSite: 'lax'
+					});
+				}
+			}
+		} else {
+			console.warn('No set-cookie header received from better-auth signInEmail');
+		}
+
+		return { success: true };
+	} catch (error) {
+		console.error('Error calling auth.api.signInEmail:', error);
+		let message = 'An unexpected error occurred during login.';
+		if (error instanceof APIError) {
+			message = error.message; // Use message from better-auth's APIError
+		} else if (error instanceof Error) {
+			message = error.message;
+		}
+		return { success: false, error: message };
+	}
+}
+// --- END New Helper Function ---
 
 // Utility function to hash passwords using argon2
 export async function hashPassword(password: string): Promise<string> {
