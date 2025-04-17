@@ -1,19 +1,8 @@
-// import { sequence } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit';
-// Remove the old api import if not needed elsewhere, or adjust if needed
-// import { api } from '$lib/server/auth';
-// import { redirect } from '@sveltejs/kit';
 
 // Import the initialized Better Auth instance and the SvelteKit handler
 import { auth } from '$lib/auth'; // Updated path
 import { svelteKitHandler } from 'better-auth/svelte-kit';
-
-// Remove the entire custom authProtection handle
-/*
-const authProtection: Handle = async ({ event, resolve }) => {
-  // ... old code ...
-};
-*/
 
 // Replace the sequence call with the direct use of svelteKitHandler
 export const handle: Handle = async ({ event, resolve }) => {
@@ -48,6 +37,3 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	return response;
 };
-
-// Remove the old sequence export
-// export const handle = sequence(authHandle, authProtection);

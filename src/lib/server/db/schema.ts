@@ -1,9 +1,4 @@
 import { timestamp, pgTable, text, primaryKey, integer } from 'drizzle-orm/pg-core';
-// import type { AdapterAccount } from 'better-auth'; // Assuming better-auth exports this type, adjust if necessary
-
-// Remove or comment out original user/session if needed, but replacing fully here
-// export const user = pgTable('user', { ... });
-// export const session = pgTable('session', { ... });
 
 export const users = pgTable('users', {
 	// Table name often 'user' or 'users'
@@ -15,7 +10,6 @@ export const users = pgTable('users', {
 	email: text('email').notNull().unique(), // Added email field
 	emailVerified: timestamp('emailVerified', { mode: 'date', withTimezone: true }), // Standard field
 	image: text('image'), // Standard field
-	// Removed original 'age' field, add back if needed: age: integer('age')
 	hashedPassword: text('hashed_password') // Added field to store hashed password for credentials auth
 });
 
