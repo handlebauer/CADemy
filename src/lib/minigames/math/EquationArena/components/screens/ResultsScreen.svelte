@@ -5,6 +5,7 @@
 	export let equationsSolvedCorrectly: number;
 	export let formattedLevelDuration: string;
 	export let currentLevelBonuses: BonusConfig[] = [];
+	export let levelScore: number;
 
 	// Declare handlers purely as props expecting functions from the parent
 	export let handleExit: () => void;
@@ -53,6 +54,13 @@
 				<span class="metric-label">TIME</span>
 			</div>
 			<div class="metric-value">{formattedLevelDuration}</div>
+		</div>
+		<div class="metric-divider">•</div>
+		<div class="metric">
+			<div class="metric-header">
+				<span class="metric-label">SCORE</span>
+			</div>
+			<div class="metric-value">{levelScore}</div>
 		</div>
 	</div>
 

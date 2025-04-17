@@ -64,6 +64,10 @@ export interface ArenaState {
 	feedbackTimeoutId: number | null;
 	levelStartTime: number | null;
 	levelEndTime: number | null;
+	currentLevelScore: number;
+	totalGameScore: number;
+	levelBonusesUsedThisLevel: Set<string>;
+	completedLevelsData: Array<{ levelNumber: number; score: number; bonuses: BonusConfig[] }>;
 }
 
 export const initialArenaState: ArenaState = {
@@ -110,7 +114,11 @@ export const initialArenaState: ArenaState = {
 	isFeedbackActive: false,
 	feedbackTimeoutId: null,
 	levelStartTime: null,
-	levelEndTime: null
+	levelEndTime: null,
+	currentLevelScore: 0,
+	totalGameScore: 0,
+	levelBonusesUsedThisLevel: new Set<string>(),
+	completedLevelsData: []
 };
 
 // --- Store Creation Logic ---
@@ -120,12 +128,14 @@ function createArenaStore() {
 	// Create action groups by calling the imported creators
 	const inputActions = createInputActions(update);
 	const crafterActions = createCrafterActions(update);
-	const lifecycleActions = createLifecycleActions(update, set);
-	const entityActions = createEntityActions(update, lifecycleActions.setGameOver);
+	const { setGameOverInternal, ...otherLifecycleActions } = createLifecycleActions(update, set);
+	const lifecycleActions = otherLifecycleActions;
+
+	const entityActions = createEntityActions(update, setGameOverInternal);
 	const gameplayActions = createGameplayActions(
 		update,
 		prepareNextRoundInternal,
-		lifecycleActions.setGameOver
+		setGameOverInternal
 	);
 	const tutorialActions = createTutorialActions(update);
 

@@ -7,7 +7,8 @@ export enum GameStatus {
 	CASTING = 'CASTING',
 	RESULT = 'RESULT',
 	TUTORIAL = 'TUTORIAL',
-	GAME_OVER = 'GAME_OVER'
+	GAME_OVER = 'GAME_OVER',
+	FINAL_SUMMARY = 'FINAL_SUMMARY'
 }
 
 export type ConfigKey =

@@ -34,6 +34,7 @@
 	import GradeSelectionScreen from './components/screens/GradeSelectionScreen.svelte';
 	import StartScreen from './components/screens/StartScreen.svelte';
 	import ResultsScreen from './components/screens/ResultsScreen.svelte';
+	import FinalSummaryScreen from './components/screens/FinalSummaryScreen.svelte';
 
 	// Import orchestrator and overlay
 	import GameUI from './components/GameUI.svelte';
@@ -702,7 +703,7 @@
 			<GradeSelectionScreen on:selectGrade={handleGradeSelected} />
 		{:else if $arenaStore.gameStatus === GameStatus.PRE_GAME}
 			<StartScreen on:startGame={handleStartGame} />
-		{:else if $arenaStore.gameStatus !== GameStatus.GAME_OVER}
+		{:else if $arenaStore.gameStatus !== GameStatus.GAME_OVER && $arenaStore.gameStatus !== GameStatus.FINAL_SUMMARY}
 			<GameUI
 				{...$arenaStore}
 				{formattedTime}
@@ -728,12 +729,20 @@
 				on:backspaceCrafted={handleBackspaceCraftedEvent}
 				on:submitEquation={handleSubmitEquationEvent}
 			/>
+		{:else if $arenaStore.gameStatus === GameStatus.FINAL_SUMMARY}
+			<FinalSummaryScreen
+				totalGameScore={$arenaStore.totalGameScore}
+				completedLevelsData={$arenaStore.completedLevelsData}
+				handlePlayAgain={handleTryAgainEvent}
+				handleExit={handleExitGameEvent}
+			/>
 		{:else}
 			<ResultsScreen
 				playerHealth={$arenaStore.playerHealth}
 				equationsSolvedCorrectly={$arenaStore.equationsSolvedCorrectly}
 				{formattedLevelDuration}
 				currentLevelBonuses={$arenaStore.currentLevelBonuses}
+				levelScore={$arenaStore.currentLevelScore}
 				handleExit={handleExitGameEvent}
 				handleNextLevel={handleNextLevelEvent}
 				handleTryAgain={handleTryAgainEvent}
