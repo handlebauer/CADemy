@@ -18,7 +18,7 @@ export type ConfigKey =
 	| 'FIRE_DAMAGE'
 	| 'WRONG_ANSWER_HEALTH_PENALTY'
 	| 'WRONG_ANSWER_PENALTY_TOLERANCE'
-	| 'SHIELD_DURATION_MS';
+	| 'TIMER_FREEZE_DURATION_MS';
 
 export interface TweakpaneConfigBinding {
 	key: ConfigKey;

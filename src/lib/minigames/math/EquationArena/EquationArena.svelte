@@ -12,7 +12,6 @@
 		CRAFTER_FEEDBACK_DISPLAY_DURATION,
 		WRONG_ANSWER_HEALTH_PENALTY,
 		WRONG_ANSWER_PENALTY_TOLERANCE,
-		SHIELD_DURATION_MS,
 		equationArenaTweakpaneBindings
 	} from './config/index';
 	import { getCrafterLevelConfig } from './config/crafterLevels';
@@ -47,8 +46,7 @@
 		WRONG_ANSWER_HEALTH_PENALTY,
 		WRONG_ANSWER_PENALTY_TOLERANCE,
 		INCORRECT_RESULT_DISPLAY_DELAY,
-		CRAFTER_FEEDBACK_DISPLAY_DURATION,
-		SHIELD_DURATION_MS
+		CRAFTER_FEEDBACK_DISPLAY_DURATION
 	};
 
 	// --- Local Component State (Timers, Intervals) ---
@@ -58,9 +56,7 @@
 	let damageDisplayTimeout: number | null = null;
 	let playerHitTimeout: number | null = null;
 	let enemyHitTimeout: number | null = null;
-	let shieldHitTimeout: number | null = null;
 	let telegraphTimeout: number | null = null;
-	let shieldBlockedHitTimeout: number | null = null;
 	let pane: Pane;
 
 	// --- Local UI State ---
@@ -69,8 +65,6 @@
 	let playerHit = false;
 	let damageTaken: number | null = null;
 	let enemyHit = false;
-	let shieldHit = false;
-	let shieldBlockedHit = false;
 	let enemyDefeatedAnimating = false;
 	let isEnemyTelegraphing = false;
 	let gameStarted = false;
@@ -109,9 +103,7 @@
 		if (damageDisplayTimeout) clearTimeout(damageDisplayTimeout);
 		if (playerHitTimeout) clearTimeout(playerHitTimeout);
 		if (enemyHitTimeout) clearTimeout(enemyHitTimeout);
-		if (shieldHitTimeout) clearTimeout(shieldHitTimeout);
 		if (telegraphTimeout) clearTimeout(telegraphTimeout);
-		if (shieldBlockedHitTimeout) clearTimeout(shieldBlockedHitTimeout);
 
 		// Reset all timer variables
 		attackTimerInterval = null;
@@ -120,15 +112,11 @@
 		damageDisplayTimeout = null;
 		playerHitTimeout = null;
 		enemyHitTimeout = null;
-		shieldHitTimeout = null;
 		telegraphTimeout = null;
-		shieldBlockedHitTimeout = null;
 
 		playerHit = false;
 		damageTaken = null;
 		enemyHit = false;
-		shieldHit = false;
-		shieldBlockedHit = false;
 		enemyDefeatedAnimating = false;
 		isEnemyTelegraphing = false;
 	}
@@ -338,19 +326,6 @@
 		}
 	}
 
-	// Refactored player hit feedback (only handles shield visual now)
-	function triggerShieldHitFeedback() {
-		if (shieldHitTimeout) clearTimeout(shieldHitTimeout);
-		shieldHit = true;
-		if (arenaContainerElement) {
-			arenaContainerElement.style.setProperty('--shake-intensity', `5px`); // Standard shake for shield
-		}
-		shieldHitTimeout = setTimeout(() => {
-			shieldHit = false;
-			shieldHitTimeout = null;
-		}, 300);
-	}
-
 	// Function to handle starting the game (from StartScreen)
 	function handleStartGame() {
 		// startGame action now uses selectedGrade/gameMode from the store
@@ -386,12 +361,20 @@
 				return; // Skip timer tick and attack logic
 			}
 
-			// If not showing feedback and game is solving...
+			// Always try to tick the main attack timer (action handles pause)
 			if ($arenaStore.gameStatus === GameStatus.SOLVING) {
+				arenaStore.tickAttackTimer();
+			}
+
+			// If the timer is frozen, also tick the freeze duration
+			if ($arenaStore.isTimerFrozen) {
+				arenaStore.tickTimerFreeze(100);
+			}
+
+			// Check attack condition only if the timer isn't frozen
+			if (!$arenaStore.isTimerFrozen && $arenaStore.gameStatus === GameStatus.SOLVING) {
 				// Decrement timer if time remains
 				if ($arenaStore.attackTimeRemaining > 0) {
-					arenaStore.tickAttackTimer();
-
 					// Start telegraphing when there's exactly TELEGRAPH_DURATION milliseconds left
 					const timeRemainingMs = $arenaStore.attackTimeRemaining * 1000;
 					if (timeRemainingMs <= TELEGRAPH_DURATION && !hasTelegraphStarted) {
@@ -407,29 +390,8 @@
 
 					// Execute attack
 					if ($arenaStore.gameStatus === GameStatus.SOLVING) {
-						// Check if shield will block
-						const shieldWillBlock = $arenaStore.isShieldActive;
-
-						// Trigger shield block visual effect if needed
-						if (shieldWillBlock) {
-							if (shieldBlockedHitTimeout) clearTimeout(shieldBlockedHitTimeout);
-							shieldBlockedHit = true;
-							shieldBlockedHitTimeout = setTimeout(() => {
-								shieldBlockedHit = false;
-								shieldBlockedHitTimeout = null;
-							}, 600);
-
-							// Also trigger screen edge flash for shield hit
-							triggerShieldHitFeedback();
-						}
-
 						// Apply damage or block it
 						arenaStore.receivePlayerDamage(enemyConfig.damage);
-
-						// Clear shield after blocking
-						if (shieldWillBlock) {
-							arenaStore.clearShieldState();
-						}
 
 						// Reset telegraph state
 						isEnemyTelegraphing = false;
@@ -441,12 +403,18 @@
 					}
 				}
 			}
-			// If game state is not SOLVING, clear interval and reset telegraph
-			else {
+			// If game state is not SOLVING, check if we should stop completely
+			else if (
+				$arenaStore.gameStatus === GameStatus.GAME_OVER ||
+				$arenaStore.gameStatus === GameStatus.PRE_GAME
+			) {
+				// Only stop interval completely if game is over or reset
 				if (attackTimerInterval) clearInterval(attackTimerInterval);
 				attackTimerInterval = null;
 				isEnemyTelegraphing = false;
 			}
+			// Otherwise (e.g., status is RESULT), let the interval continue running.
+			// It will call tickAttackTimer (which checks status) and tickTimerFreeze (if needed).
 		}, 100);
 	}
 
@@ -563,13 +531,21 @@
 			console.log('Next Round Timeout -> Preparing Next Round');
 			// Check status again before proceeding
 			if ($arenaStore.gameStatus !== GameStatus.GAME_OVER) {
+				// Check if timer was frozen *before* preparing the next round
+				const wasTimerFrozen = $arenaStore.isTimerFrozen;
+
 				arenaStore.prepareNextRound();
 
+				// Get the spell cast *after* prepareNextRound might have updated it
+				const lastSpellCast = $arenaStore.lastSpellCast;
+
 				// After preparation, restart the attack timer for the next round
-				if ($arenaStore.currentEnemyConfig) {
+				// ONLY if the timer wasn't frozen, OR if it was frozen but FIRE was just cast.
+				if ((!wasTimerFrozen || lastSpellCast === 'FIRE') && $arenaStore.currentEnemyConfig) {
 					// Slight delay to let state update
 					setTimeout(() => {
-						if ($arenaStore.gameStatus === GameStatus.SOLVING) {
+						// Double check status and ensure timer isn't frozen now
+						if ($arenaStore.gameStatus === GameStatus.SOLVING && !$arenaStore.isTimerFrozen) {
 							startAttackTimer($arenaStore.currentEnemyConfig);
 						}
 					}, 100);
@@ -707,7 +683,6 @@
 	class="arena-wrapper"
 	class:player-hit={playerHit ||
 		($arenaStore.gameStatus === GameStatus.GAME_OVER && $arenaStore.playerHealth <= 0)}
-	class:shield-hit={shieldHit}
 	bind:this={arenaContainerElement}
 >
 	<!-- Tweakpane container -->
@@ -732,11 +707,9 @@
 				{crafterLevelDescription}
 				showCrafterFeedback={$arenaStore.showCrafterFeedback}
 				crafterFeedbackDetails={$arenaStore.crafterFeedbackDetails}
-				{playerHit}
 				{damageTaken}
 				{isEnemyTelegraphing}
-				shieldTimeRemaining={$arenaStore.shieldDurationRemaining}
-				{shieldBlockedHit}
+				isTimerFrozen={$arenaStore.isTimerFrozen}
 				{waitingForPlayerStart}
 				on:selectSpell={handleSelectSpellEvent}
 				on:handleInput={handleInputEvent}
@@ -788,7 +761,7 @@
 		justify-content: center;
 		align-items: center;
 		background-color: #e8edf1;
-		box-shadow: inset 0 0 0 0 rgba(231, 76, 60, 0);
+		box-shadow: inset 0 0 0 0 rgba(231, 76, 60, 0); /* Initial shadow for player hit */
 		transition: box-shadow 0.2s ease-out;
 		position: relative;
 		animation-duration: 0.2s;
@@ -805,12 +778,6 @@
 	.arena-wrapper.player-hit {
 		box-shadow: inset 0 0 40px 30px rgba(231, 76, 60, 0.7);
 		animation-name: shake-player-hit;
-	}
-
-	.arena-wrapper.shield-hit {
-		box-shadow: inset 0 0 40px 30px rgba(52, 152, 219, 0.6);
-		animation-name: shake-shield-block;
-		animation-duration: 0.3s;
 	}
 
 	.game-content {

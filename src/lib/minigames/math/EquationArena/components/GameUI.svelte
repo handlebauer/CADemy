@@ -36,7 +36,6 @@
 	export let playerHealth: number;
 	export let enemyHealth: number;
 	export let currentEnemyConfig: EnemyConfig | null = null;
-	export let isShieldActive: boolean;
 	export let formattedTime: string;
 	export let attackTimeRemaining: number; // Changed from gameTime
 	export let maxAttackTime: number; // Add maxAttackTime for progress indicator
@@ -65,13 +64,11 @@
 		correctVal: number | null;
 		steps: string[];
 	} | null = null;
-	export let playerHit: boolean = false;
 	export let damageTaken: number | null = null;
 	export let isEnemyTelegraphing: boolean = false;
-	export let shieldTimeRemaining: number | null = null;
-	export let shieldBlockedHit: boolean = false;
 	export let isFeedbackActive: boolean = false;
 	export let waitingForPlayerStart: boolean = true;
+	export let isTimerFrozen: boolean = false;
 
 	// --- Event Handlers ---
 	// Bubble up the selectSpell event from the child component
@@ -147,14 +144,12 @@
 	<!-- Use the new TopBar component -->
 	<TopBar
 		{playerHealth}
-		{isShieldActive}
 		{attackTimeRemaining}
 		{maxAttackTime}
 		{formattedTime}
-		{playerHit}
 		{damageTaken}
-		{shieldBlockedHit}
 		{waitingForPlayerStart}
+		{isTimerFrozen}
 	/>
 
 	<!-- Enemy Display Component -->
@@ -171,12 +166,7 @@
 	/>
 
 	<!-- Use the new SpellSelection component -->
-	<SpellSelection
-		{selectedSpell}
-		{isShieldActive}
-		{shieldTimeRemaining}
-		on:selectSpell={handleSelectSpellEvent}
-	/>
+	<SpellSelection {selectedSpell} on:selectSpell={handleSelectSpellEvent} />
 
 	<!-- Equation Display Wrapper -->
 	<div
