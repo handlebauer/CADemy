@@ -236,7 +236,9 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 			...state,
 			...shieldClearedState,
 			gameStatus: GameStatus.GAME_OVER,
+			playerHealth: 0,
 			resultMessage: message,
+			levelEndTime: Date.now(), // Set end time on game over
 			activeBonuses: [],
 			usedCraftedEquations: new Set<string>(),
 			levelBonusesUsedThisLevel: new Set<string>() // Reset on game over
