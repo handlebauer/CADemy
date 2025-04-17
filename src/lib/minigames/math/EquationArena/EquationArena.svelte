@@ -74,6 +74,7 @@
 	let enemyDefeatedAnimating = false;
 	let isEnemyTelegraphing = false;
 	let gameStarted = false;
+	let waitingForPlayerStart = true;
 
 	// --- Element Refs ---
 	let arenaContainerElement: HTMLDivElement;
@@ -186,6 +187,7 @@
 	function handleNextLevelEvent() {
 		console.log('got here');
 		arenaStore.advanceLevelAndStart();
+		waitingForPlayerStart = true; // Reset waiting state when advancing to next level
 	}
 	function handleTryAgainEvent() {
 		// Explicitly clear the hit effect when trying again
@@ -193,6 +195,7 @@
 		// Reset to grade selection? Or just restart level 1 of the current grade?
 		// For now, let's restart level 1 of the current grade/mode.
 		arenaStore.startGame();
+		waitingForPlayerStart = true; // Reset waiting state when retrying
 	}
 
 	// --- Tutorial Handler ---
@@ -352,6 +355,7 @@
 	function handleStartGame() {
 		// startGame action now uses selectedGrade/gameMode from the store
 		arenaStore.startGame();
+		waitingForPlayerStart = true; // Reset waiting state when starting a new game
 	}
 
 	// --- Timer Management ---
@@ -359,6 +363,7 @@
 	function startAttackTimer(enemyConfig: ArenaState['currentEnemyConfig']) {
 		if (!enemyConfig) return; // Safety check
 		if (attackTimerInterval) clearInterval(attackTimerInterval); // Clear existing if any
+		if (waitingForPlayerStart) return; // Don't start timer if player hasn't confirmed
 
 		// Set the initial attack time from enemy config
 		arenaStore.resetAttackTimer(enemyConfig.solveTimeSec);
@@ -450,7 +455,8 @@
 		if (
 			$arenaStore.gameStatus === GameStatus.SOLVING &&
 			!gameStarted &&
-			$arenaStore.currentEnemyConfig
+			$arenaStore.currentEnemyConfig &&
+			!waitingForPlayerStart // Only start attack timer if player has confirmed
 		) {
 			console.log('Reactive: Game Status == SOLVING & !gameStarted -> Starting Timers');
 			// Start the attack timer immediately when the level begins
@@ -465,6 +471,7 @@
 			console.log('Reactive: Game Ended/Reset -> Stopping Timers & Resetting gameStarted');
 			stopGameTimers(); // Stop timers when game ends or resets
 			gameStarted = false; // Reset for next game
+			waitingForPlayerStart = true; // Reset waiting state for next level
 		}
 	}
 
@@ -595,6 +602,17 @@
 		}, 1500); // Increased from 1000ms to 1500ms to give bonus animation more time
 	}
 
+	// Add startLevel handler
+	function handleStartLevel() {
+		waitingForPlayerStart = false;
+
+		// Start the attack timer after the player indicates they're ready
+		if ($arenaStore.gameStatus === GameStatus.SOLVING && $arenaStore.currentEnemyConfig) {
+			startAttackTimer($arenaStore.currentEnemyConfig);
+			gameStarted = true;
+		}
+	}
+
 	// --- Lifecycle ---
 	onMount(() => {
 		// Reset the store to initial state (PRE_GAME, grade not selected)
@@ -719,6 +737,7 @@
 				{isEnemyTelegraphing}
 				shieldTimeRemaining={$arenaStore.shieldDurationRemaining}
 				{shieldBlockedHit}
+				{waitingForPlayerStart}
 				on:selectSpell={handleSelectSpellEvent}
 				on:handleInput={handleInputEvent}
 				on:clearInput={handleClearInputEvent}
@@ -728,6 +747,7 @@
 				on:clearCrafted={handleClearCraftedEvent}
 				on:backspaceCrafted={handleBackspaceCraftedEvent}
 				on:submitEquation={handleSubmitEquationEvent}
+				on:startLevel={handleStartLevel}
 			/>
 		{:else if $arenaStore.gameStatus === GameStatus.FINAL_SUMMARY}
 			<FinalSummaryScreen

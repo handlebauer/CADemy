@@ -27,6 +27,8 @@
 		submitEquation: void;
 		// General
 		castSpell: void;
+		// Level start event
+		startLevel: void;
 	}>();
 
 	// --- Exported Props ---
@@ -69,6 +71,7 @@
 	export let shieldTimeRemaining: number | null = null;
 	export let shieldBlockedHit: boolean = false;
 	export let isFeedbackActive: boolean = false;
+	export let waitingForPlayerStart: boolean = true;
 
 	// --- Event Handlers ---
 	// Bubble up the selectSpell event from the child component
@@ -99,6 +102,9 @@
 	}
 	function handleCastSpell() {
 		dispatch('castSpell');
+	}
+	function handleStartLevel() {
+		dispatch('startLevel');
 	}
 
 	// --- Reactive Segment Calculations ---
@@ -148,6 +154,7 @@
 		{playerHit}
 		{damageTaken}
 		{shieldBlockedHit}
+		{waitingForPlayerStart}
 	/>
 
 	<!-- Enemy Display Component -->
@@ -171,20 +178,14 @@
 		on:selectSpell={handleSelectSpellEvent}
 	/>
 
-	<!-- Equation Display -->
+	<!-- Equation Display Wrapper -->
 	<div
 		id="equation-display-wrapper"
 		class="equation-display-wrapper"
 		class:shake={false}
 		class:shake-shield={false}
 	>
-		<div
-			class="equation-display"
-			class:correct={lastAnswerCorrect === true && gameStatus === GameStatus.RESULT}
-			class:incorrect={(lastAnswerCorrect === false && gameStatus === GameStatus.RESULT) ||
-				isFeedbackActive}
-			class:eval-error={(!!evaluationError && gameStatus === GameStatus.RESULT) || isFeedbackActive}
-		>
+		<div class="equation-display">
 			<EquationDisplay
 				{gameMode}
 				{gameStatus}
@@ -197,6 +198,13 @@
 				{crafterResultSegments}
 				{evaluationError}
 				{isFeedbackActive}
+				{showCrafterFeedback}
+				{crafterFeedbackDetails}
+				{crafterLevelDescription}
+				{currentLevelNumber}
+				{waitingForPlayerStart}
+				{lastAnswerCorrect}
+				on:startLevel={handleStartLevel}
 			/>
 		</div>
 
@@ -208,11 +216,6 @@
 			/>
 		{/if}
 	</div>
-
-	<!-- Crafter Level Description -->
-	{#if gameMode === 'crafter' && (gameStatus === GameStatus.SOLVING || gameStatus === GameStatus.RESULT) && crafterLevelDescription}
-		<div class="crafter-objective">🎯 Goal: {crafterLevelDescription}</div>
-	{/if}
 
 	<!-- Conditional Numpad Rendering -->
 	<div class="numpad-area">
@@ -233,6 +236,7 @@
 				{craftedEquationString}
 				allowedChars={allowedCrafterChars}
 				{isCraftedEquationValidForLevel}
+				{waitingForPlayerStart}
 				on:inputChar={handleCrafterInputChar}
 				on:clear={handleClearCraftedEquation}
 				on:backspace={handleCrafterBackspace}
@@ -271,41 +275,25 @@
 	.equation-display-wrapper {
 		position: relative;
 		width: 350px;
-		height: 70px;
+		height: 90px;
 		margin-bottom: 1.5rem;
 	}
 
 	.equation-display {
 		width: 350px;
-		height: 70px; /* Added fixed height */
-		background-color: #fffbea; /* Light yellow background */
-		border: 2px solid #f9d423; /* Yellow border */
+		height: 100%;
 		border-radius: 8px;
 		padding: 1rem;
 		box-sizing: border-box;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 1.8em; /* Larger font size */
+		font-size: 1.8em;
 		font-weight: bold;
 		text-align: center;
-		transition:
-			background-color 0.3s ease,
-			border-color 0.3s ease;
+		transition: none;
 		overflow: hidden;
-		white-space: nowrap; /* Prevent wrapping of equation */
-	}
-
-	.equation-display.correct {
-		background-color: #e6f4ea;
-		border-color: #b7e4c7;
-		animation: pulse-correct 0.4s ease-in-out;
-	}
-
-	.equation-display.incorrect {
-		background-color: #f8d7da;
-		border-color: #f5c6cb;
-		animation: shake-incorrect 0.4s ease-in-out;
+		white-space: nowrap;
 	}
 
 	.numpad-area {
@@ -314,42 +302,27 @@
 		justify-content: center;
 	}
 
-	.equation-display.eval-error {
-		border-color: #e74c3c; /* Red border for error */
-		background-color: #fadbd8;
-	}
-
 	/* --- Fraction Styling --- */
 	:global(.fraction) {
 		display: inline-flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		vertical-align: middle; /* Align with surrounding text */
-		margin: 0 0.1em; /* Small horizontal margin */
-		line-height: 1; /* Prevent extra vertical space */
+		vertical-align: middle;
+		margin: 0 0.1em;
+		line-height: 1;
 	}
 	:global(.numerator) {
-		font-size: 0.8em; /* Slightly smaller */
+		font-size: 0.8em;
 		line-height: 1;
 		padding-bottom: 0.1em;
 	}
 	:global(.denominator) {
 		font-size: 0.8em;
 		line-height: 1;
-		border-top: 1.5px solid currentColor; /* Fraction line */
+		border-top: 1.5px solid currentColor;
 		padding-top: 0.1em;
 	}
 
-	.crafter-objective {
-		font-size: 0.9em;
-		color: #555;
-		background-color: #eaf2f8;
-		padding: 0.4rem 0.8rem;
-		border-radius: 4px;
-		margin-top: -0.75rem; /* Pull up slightly below equation display */
-		margin-bottom: 1rem; /* Add space before numpad */
-		max-width: 350px;
-		text-align: center;
-	}
+	/* Remove the crafter-objective style as it's no longer needed */
 </style>

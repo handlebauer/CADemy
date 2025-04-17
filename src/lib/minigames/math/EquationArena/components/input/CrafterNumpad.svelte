@@ -32,6 +32,8 @@
 	export let allowedChars: string[] | null = null;
 	// Prop for craft validation (used by submit button)
 	export let isCraftedEquationValidForLevel: boolean = false;
+	// ADD: Prop to disable based on player start confirmation
+	export let waitingForPlayerStart: boolean = false;
 
 	// Local validation logic has been moved to ../../utils/equationInputValidation.ts
 </script>
@@ -41,27 +43,31 @@
 	<!-- Row 1 -->
 	<button
 		class="action-btn clear-btn"
-		on:click={() => dispatch(isCraftingPhase ? 'clear' : 'clearAnswer')}>C</button
+		on:click={() => dispatch(isCraftingPhase ? 'clear' : 'clearAnswer')}
+		disabled={waitingForPlayerStart}>C</button
 	>
 	<div class="paren-buttons">
 		<button
 			class="op-btn special-btn"
 			on:click={() => dispatch('inputChar', '(')}
-			disabled={!isCraftingPhase || !isOpenParenAllowed(craftedEquationString, allowedChars)}
-			>(
-		</button>
+			disabled={waitingForPlayerStart ||
+				!isCraftingPhase ||
+				!isOpenParenAllowed(craftedEquationString, allowedChars)}>(</button
+		>
 		<button
 			class="op-btn special-btn"
 			on:click={() => dispatch('inputChar', ')')}
-			disabled={!isCraftingPhase || !isCloseParenAllowed(craftedEquationString, allowedChars)}
-			>)</button
+			disabled={waitingForPlayerStart ||
+				!isCraftingPhase ||
+				!isCloseParenAllowed(craftedEquationString, allowedChars)}>)</button
 		>
 	</div>
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '/')}
-		disabled={!isCraftingPhase || !isOperatorAllowed('/', craftedEquationString, allowedChars)}
-		>÷</button
+		disabled={waitingForPlayerStart ||
+			!isCraftingPhase ||
+			!isOperatorAllowed('/', craftedEquationString, allowedChars)}>÷</button
 	>
 
 	<!-- Row 2 -->
@@ -69,34 +75,38 @@
 		class="num-btn"
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '7' : 7)}
-		disabled={!isCraftingPhase &&
-			playerInput === '' &&
-			!selectedSpell &&
-			gameStatus !== GameStatus.SOLVING}>7</button
+		disabled={waitingForPlayerStart ||
+			(!isCraftingPhase &&
+				playerInput === '' &&
+				!selectedSpell &&
+				gameStatus !== GameStatus.SOLVING)}>7</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '8' : 8)}
-		disabled={!isCraftingPhase &&
-			playerInput === '' &&
-			!selectedSpell &&
-			gameStatus !== GameStatus.SOLVING}>8</button
+		disabled={waitingForPlayerStart ||
+			(!isCraftingPhase &&
+				playerInput === '' &&
+				!selectedSpell &&
+				gameStatus !== GameStatus.SOLVING)}>8</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '9' : 9)}
-		disabled={!isCraftingPhase &&
-			playerInput === '' &&
-			!selectedSpell &&
-			gameStatus !== GameStatus.SOLVING}>9</button
+		disabled={waitingForPlayerStart ||
+			(!isCraftingPhase &&
+				playerInput === '' &&
+				!selectedSpell &&
+				gameStatus !== GameStatus.SOLVING)}>9</button
 	>
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '×')}
-		disabled={!isCraftingPhase || !isOperatorAllowed('×', craftedEquationString, allowedChars)}
-		>×</button
+		disabled={waitingForPlayerStart ||
+			!isCraftingPhase ||
+			!isOperatorAllowed('×', craftedEquationString, allowedChars)}>×</button
 	>
 
 	<!-- Row 3 -->
@@ -104,34 +114,38 @@
 		class="num-btn"
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '4' : 4)}
-		disabled={!isCraftingPhase &&
-			playerInput === '' &&
-			!selectedSpell &&
-			gameStatus !== GameStatus.SOLVING}>4</button
+		disabled={waitingForPlayerStart ||
+			(!isCraftingPhase &&
+				playerInput === '' &&
+				!selectedSpell &&
+				gameStatus !== GameStatus.SOLVING)}>4</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '5' : 5)}
-		disabled={!isCraftingPhase &&
-			playerInput === '' &&
-			!selectedSpell &&
-			gameStatus !== GameStatus.SOLVING}>5</button
+		disabled={waitingForPlayerStart ||
+			(!isCraftingPhase &&
+				playerInput === '' &&
+				!selectedSpell &&
+				gameStatus !== GameStatus.SOLVING)}>5</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '6' : 6)}
-		disabled={!isCraftingPhase &&
-			playerInput === '' &&
-			!selectedSpell &&
-			gameStatus !== GameStatus.SOLVING}>6</button
+		disabled={waitingForPlayerStart ||
+			(!isCraftingPhase &&
+				playerInput === '' &&
+				!selectedSpell &&
+				gameStatus !== GameStatus.SOLVING)}>6</button
 	>
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '-')}
-		disabled={!isCraftingPhase || !isOperatorAllowed('-', craftedEquationString, allowedChars)}
-		>-</button
+		disabled={waitingForPlayerStart ||
+			!isCraftingPhase ||
+			!isOperatorAllowed('-', craftedEquationString, allowedChars)}>-</button
 	>
 
 	<!-- Row 4 -->
@@ -139,34 +153,38 @@
 		class="num-btn"
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '1' : 1)}
-		disabled={!isCraftingPhase &&
-			playerInput === '' &&
-			!selectedSpell &&
-			gameStatus !== GameStatus.SOLVING}>1</button
+		disabled={waitingForPlayerStart ||
+			(!isCraftingPhase &&
+				playerInput === '' &&
+				!selectedSpell &&
+				gameStatus !== GameStatus.SOLVING)}>1</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '2' : 2)}
-		disabled={!isCraftingPhase &&
-			playerInput === '' &&
-			!selectedSpell &&
-			gameStatus !== GameStatus.SOLVING}>2</button
+		disabled={waitingForPlayerStart ||
+			(!isCraftingPhase &&
+				playerInput === '' &&
+				!selectedSpell &&
+				gameStatus !== GameStatus.SOLVING)}>2</button
 	>
 	<button
 		class="num-btn"
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '3' : 3)}
-		disabled={!isCraftingPhase &&
-			playerInput === '' &&
-			!selectedSpell &&
-			gameStatus !== GameStatus.SOLVING}>3</button
+		disabled={waitingForPlayerStart ||
+			(!isCraftingPhase &&
+				playerInput === '' &&
+				!selectedSpell &&
+				gameStatus !== GameStatus.SOLVING)}>3</button
 	>
 	<button
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '+')}
-		disabled={!isCraftingPhase || !isOperatorAllowed('+', craftedEquationString, allowedChars)}
-		>+</button
+		disabled={waitingForPlayerStart ||
+			!isCraftingPhase ||
+			!isOperatorAllowed('+', craftedEquationString, allowedChars)}>+</button
 	>
 
 	<!-- Row 5 -->
@@ -174,19 +192,23 @@
 		class="num-btn zero-btn"
 		on:click={() =>
 			dispatch(isCraftingPhase ? 'inputChar' : 'inputNumber', isCraftingPhase ? '0' : 0)}
-		disabled={!isCraftingPhase &&
-			playerInput === '' &&
-			!selectedSpell &&
-			gameStatus !== GameStatus.SOLVING}>0</button
+		disabled={waitingForPlayerStart ||
+			(!isCraftingPhase &&
+				playerInput === '' &&
+				!selectedSpell &&
+				gameStatus !== GameStatus.SOLVING)}>0</button
 	>
 	<button
 		class="num-btn"
 		on:click={() => dispatch('inputChar', '.')}
-		disabled={!isCraftingPhase || !isDecimalAllowed(craftedEquationString, allowedChars)}>.</button
+		disabled={waitingForPlayerStart ||
+			!isCraftingPhase ||
+			!isDecimalAllowed(craftedEquationString, allowedChars)}>.</button
 	>
 	<button
 		class="action-btn backspace-btn"
 		on:click={() => dispatch(isCraftingPhase ? 'backspace' : 'backspaceAnswer')}
+		disabled={waitingForPlayerStart}
 	>
 		UNDO
 	</button>
@@ -195,11 +217,12 @@
 	<button
 		class="submit-btn"
 		on:click={() => dispatch(isCraftingPhase ? 'submitEquation' : 'castSpell')}
-		disabled={isCraftingPhase
-			? gameStatus !== GameStatus.SOLVING ||
-				!craftedEquationString.trim() ||
-				!isCraftedEquationValidForLevel
-			: gameStatus !== GameStatus.SOLVING || playerInput === '' || !selectedSpell}
+		disabled={waitingForPlayerStart ||
+			(isCraftingPhase
+				? gameStatus !== GameStatus.SOLVING ||
+					!craftedEquationString.trim() ||
+					!isCraftedEquationValidForLevel
+				: gameStatus !== GameStatus.SOLVING || playerInput === '' || !selectedSpell)}
 		class:glow={!isCraftingPhase &&
 			gameStatus === GameStatus.SOLVING &&
 			playerInput !== '' &&

@@ -7,6 +7,7 @@
 	export let playerHit: boolean = false;
 	export let damageTaken: number | null = null;
 	export let shieldBlockedHit: boolean = false;
+	export let waitingForPlayerStart: boolean = false;
 </script>
 
 <div class="top-bar">
@@ -33,13 +34,17 @@
 
 	<div
 		class="status-container timer"
-		class:low-time={attackTimeRemaining > 0 && attackTimeRemaining <= maxAttackTime * 0.3}
+		class:low-time={!waitingForPlayerStart &&
+			attackTimeRemaining > 0 &&
+			attackTimeRemaining <= maxAttackTime * 0.3}
 	>
 		<span class="icon timer-icon">⏱️</span>
 		<div class="bar-container attack-timer-bar-container">
 			<div
 				class="bar-fill attack-timer-bar-fill"
-				style="width: {(attackTimeRemaining / maxAttackTime) * 100}%;"
+				style="width: {waitingForPlayerStart
+					? '100'
+					: (attackTimeRemaining / maxAttackTime) * 100}%;"
 			></div>
 		</div>
 		<span class="value-text timer-text">{formattedTime.replace('Time: ', '')}</span>
