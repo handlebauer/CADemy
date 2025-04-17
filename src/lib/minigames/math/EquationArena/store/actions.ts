@@ -200,14 +200,30 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 			update((state) => {
 				// Clear shield timer on reset
 				const shieldClearedState = clearShieldState(state);
+				// Clear feedback timeout
+				if (state.feedbackTimeoutId) {
+					clearTimeout(state.feedbackTimeoutId);
+				}
+				// Also clear the old crafter feedback timeout just in case
+				if (state.crafterFeedbackTimeoutId) {
+					clearTimeout(state.crafterFeedbackTimeoutId);
+				}
 				const newState = {
 					...initialArenaState,
 					...shieldClearedState,
 					needsCrafterTutorial: state.needsCrafterTutorial,
+					// Ensure feedback state is reset
+					isFeedbackActive: false,
+					feedbackTimeoutId: null,
+					crafterFeedbackTimeoutId: null, // Reset this too
+					evaluationError: null,
+					showCrafterFeedback: false,
+					crafterFeedbackDetails: null,
+					// Reset other state
 					enemyJustDefeated: false,
 					usedCraftedEquations: new Set<string>(),
-					currentLevelBonuses: [], // Reset
-					totalBonusesApplied: [] // Reset
+					currentLevelBonuses: [],
+					totalBonusesApplied: []
 				};
 				console.log(`Player HP Reset: ${newState.playerHealth}`);
 				return newState;
@@ -271,21 +287,25 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 					currentEnemyConfig: firstEnemy,
 					enemyHealth: firstEnemy.health,
 					playerHealth: 100,
-					gameTime: 90,
-					startTime: 90,
+					attackTimeRemaining: firstEnemy.solveTimeSec,
+					maxAttackTime: firstEnemy.solveTimeSec,
 					selectedSpell: state.selectedSpell || 'FIRE',
 					tutorialStep: 0,
 					needsCrafterTutorial: state.needsCrafterTutorial,
 					enemyJustDefeated: false,
 					usedCraftedEquations: new Set<string>(),
 					currentLevelBonuses: [], // Reset level bonuses
-					totalBonusesApplied: [] // Reset total bonuses
+					totalBonusesApplied: [], // Reset total bonuses
+					// Reset level timer
+					levelStartTime: null,
+					levelEndTime: null
 				};
 				switch (state.gameMode) {
 					case 'solver': {
 						const newState = {
 							...(baseStartState as ArenaState),
-							...generateSolverEquation(startingLevel)
+							...generateSolverEquation(startingLevel),
+							levelStartTime: Date.now() // Set start time when entering SOLVING
 						};
 						console.log(`Player HP Started (Solver): ${newState.playerHealth}`);
 						return newState;
@@ -306,7 +326,9 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 							allowedCrafterChars: levelConfig.allowedChars,
 							isCraftedEquationValidForLevel: false,
 							currentLevelBonuses: [], // Reset level bonuses
-							totalBonusesApplied: [] // Reset total bonuses
+							totalBonusesApplied: [], // Reset total bonuses
+							// Reset level timer
+							levelStartTime: startTutorial ? null : Date.now() // Set start time only if skipping tutorial
 						};
 						console.log(`Player HP Started (Crafter): ${newState.playerHealth}`);
 						return newState;
@@ -317,7 +339,16 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 				}
 			}),
 		setGameOver: (message: string) => update((state) => setGameOverInternal(state, message)),
-		finalizeVictory: () => update((state) => setGameOverInternal(state, 'Victory!')),
+		finalizeVictory: () => {
+			update((state) => {
+				// Set game status to GAME_OVER with victory message
+				return {
+					...state,
+					gameStatus: GameStatus.GAME_OVER,
+					resultMessage: 'Victory!'
+				};
+			});
+		},
 		advanceLevelAndStart: () =>
 			update((state): ArenaState => {
 				if (state.gameStatus !== GameStatus.GAME_OVER || state.resultMessage !== 'Victory!') {
@@ -355,20 +386,24 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 					currentEnemyConfig: nextEnemy,
 					enemyHealth: nextEnemy.health,
 					playerHealth: 100,
-					gameTime: 90,
-					startTime: 90,
+					attackTimeRemaining: nextEnemy.solveTimeSec,
+					maxAttackTime: nextEnemy.solveTimeSec,
 					selectedSpell: state.selectedSpell || 'FIRE',
 					tutorialStep: 0,
 					needsCrafterTutorial: state.needsCrafterTutorial,
 					usedCraftedEquations: new Set<string>(),
 					currentLevelBonuses: [], // Reset level bonuses for new level
-					totalBonusesApplied: state.totalBonusesApplied // IMPORTANT: Preserve total bonuses
+					totalBonusesApplied: state.totalBonusesApplied, // IMPORTANT: Preserve total bonuses
+					// Reset level timer for new level
+					levelStartTime: null,
+					levelEndTime: null
 				};
 				switch (state.gameMode) {
 					case 'solver':
 						return {
 							...(baseNextLevelState as ArenaState),
-							...generateSolverEquation(nextLevelNumber)
+							...generateSolverEquation(nextLevelNumber),
+							levelStartTime: Date.now() // Set start time
 						};
 					case 'crafter': {
 						const levelConfig = getCrafterLevelConfig(nextLevelNumber);
@@ -390,13 +425,29 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 							craftedEquationString: '',
 							allowedCrafterChars: levelConfig.allowedChars,
 							isCraftedEquationValidForLevel: false,
-							currentLevelBonuses: [] // Reset level bonuses for new level
-							// Don't reset totalBonusesApplied here
+							currentLevelBonuses: [], // Reset level bonuses for new level
+							levelStartTime: Date.now() // Set start time
 						};
 					}
 					default:
 						console.error('Unknown game mode during advanceLevelAndStart');
 						return state;
+				}
+			}),
+		skipTutorialAndStart: () =>
+			update((state): ArenaState => {
+				if (state.gameMode === 'crafter' && state.needsCrafterTutorial && state.tutorialStep > 0) {
+					console.log('Skipping tutorial and starting game.');
+					return {
+						...state,
+						tutorialStep: 0,
+						needsCrafterTutorial: false,
+						gameStatus: GameStatus.SOLVING,
+						levelStartTime: Date.now() // Set start time when skipping tutorial
+					};
+				} else {
+					console.warn('skipTutorialAndStart called in unexpected state:', state);
+					return state;
 				}
 			})
 	};
@@ -515,18 +566,34 @@ export function createGameplayActions(
 					fullEquation = state.currentEquation.replace('?', currentInput);
 				} else if (state.gameMode === 'crafter') {
 					const isEquationUsed = state.usedCraftedEquations.has(state.craftedEquationString);
-					console.log({ equationsUsed: state.usedCraftedEquations });
-					console.log({ isEquationUsed });
 					if (isEquationUsed) {
+						console.warn('Duplicate equation submitted!');
+						if (state.feedbackTimeoutId) clearTimeout(state.feedbackTimeoutId);
+						const DUPLICATE_FEEDBACK_DURATION = 2000;
+						const newTimeoutId = setTimeout(() => {
+							update((s) => {
+								if (s.isFeedbackActive && s.evaluationError === 'Equation already used!') {
+									return {
+										...s,
+										isFeedbackActive: false,
+										evaluationError: null,
+										feedbackTimeoutId: null
+									};
+								}
+								return s;
+							});
+						}, DUPLICATE_FEEDBACK_DURATION);
 						return {
 							...state,
+							gameStatus: GameStatus.SOLVING,
+							isFeedbackActive: true,
 							evaluationError: 'Equation already used!',
-							gameStatus: GameStatus.RESULT, // Go to result state to show the error
-							lastAnswerCorrect: false, // Treat as incorrect
-							lastPlayerInput: currentInput,
-							lastFullEquation: `${state.craftedEquationString} = ${currentInput}`,
+							feedbackTimeoutId: newTimeoutId as unknown as number,
 							playerInput: '',
-							showCrafterFeedback: false, // Hide feedback
+							craftedEquationString: '',
+							isCraftedEquationValidForLevel: false,
+							isCraftingPhase: true,
+							showCrafterFeedback: false,
 							crafterFeedbackDetails: null
 						};
 					}
@@ -536,7 +603,7 @@ export function createGameplayActions(
 						evaluationErrorMessage = evaluationResult.error;
 						answerIsCorrect = false;
 					} else {
-						expected = evaluationResult.value; // Can be null
+						expected = evaluationResult.value;
 						answerIsCorrect = expected !== null && parseFloat(state.playerInput) === expected;
 						evaluationErrorMessage = null;
 					}
@@ -545,9 +612,8 @@ export function createGameplayActions(
 
 				const initialStateForCast = { ...state };
 				const intermediateState = { ...initialStateForCast };
-				const newUsedEquations = new Set(state.usedCraftedEquations); // Copy the set
+				const newUsedEquations = new Set(state.usedCraftedEquations);
 
-				// --- Recalculate answerIsCorrect specifically for crafter mode with potential fraction input ---
 				if (state.gameMode === 'crafter') {
 					let playerAnswerValue: number | null = null;
 					try {
@@ -560,25 +626,19 @@ export function createGameplayActions(
 						console.error('Error evaluating player input:', error);
 					}
 
-					const tolerance = 1e-9; // Tolerance for float comparison
+					const tolerance = 1e-9;
 					answerIsCorrect =
 						expected !== null &&
 						playerAnswerValue !== null &&
 						Math.abs(playerAnswerValue - expected) < tolerance;
 				}
-				// --- End Recalculation ---
 
 				if (answerIsCorrect) {
 					intermediateState.equationsSolvedCorrectly += 1;
-					intermediateState.consecutiveWrongAnswers = 0; // Reset counter on correct answer
+					intermediateState.consecutiveWrongAnswers = 0;
 
-					// --- Add equation to used set for crafter --- //
 					if (intermediateState.gameMode === 'crafter' && expected !== null) {
 						newUsedEquations.add(intermediateState.craftedEquationString);
-					}
-
-					// --- Bonus Calculation (Crafter Mode Only & Correct Answer & Valid Equation) ---
-					if (intermediateState.gameMode === 'crafter' && expected !== null) {
 						currentActiveBonuses = getActiveBonuses(
 							intermediateState.craftedEquationString,
 							intermediateState.playerInput,
@@ -595,13 +655,11 @@ export function createGameplayActions(
 							...currentActiveBonuses
 						];
 					} else {
-						// Solver mode or evaluation error - no bonuses from crafting
 						currentActiveBonuses = [];
 					}
-					// --- End Bonus Calculation ---
 
 					if (initialStateForCast.selectedSpell === 'FIRE') {
-						calculatedDamage = fireDamage; // Use passed-in fireDamage
+						calculatedDamage = fireDamage;
 						currentActiveBonuses.forEach((bonus) => {
 							calculatedDamage *= bonus.powerMultiplier;
 						});
@@ -609,32 +667,27 @@ export function createGameplayActions(
 						const newHealth = Math.max(0, intermediateState.enemyHealth - calculatedDamage);
 						intermediateState.enemyHealth = newHealth;
 						if (newHealth <= 0) {
-							intermediateState.enemyJustDefeated = true; // Set flag ONLY
+							intermediateState.enemyJustDefeated = true;
+							intermediateState.levelEndTime = Date.now();
 						}
 					} else if (initialStateForCast.selectedSpell === 'ICE') {
-						// Clear existing shield timer before starting a new one
 						if (state.shieldTimerIntervalId) {
 							clearInterval(state.shieldTimerIntervalId);
 						}
-						// Activate shield and set initial duration
 						intermediateState.isShieldActive = true;
 						intermediateState.shieldDurationRemaining = SHIELD_DURATION_MS;
-						intermediateState.shieldTimerIntervalId = null; // Will be set by the timeout action
+						intermediateState.shieldTimerIntervalId = null;
 
-						// Action to start the interval (called via setTimeout)
 						const startShieldTimerAction = () => {
 							update((currentState) => {
-								// Double-check: shield might have been cleared between cast and timer start
 								if (!currentState.isShieldActive || currentState.shieldTimerIntervalId !== null) {
 									return currentState;
 								}
 
 								const intervalId = setInterval(() => {
 									update((timerState) => {
-										// If shield was deactivated externally or duration is null, clear interval
 										if (!timerState.isShieldActive || timerState.shieldDurationRemaining === null) {
 											clearInterval(intervalId);
-											// Ensure state reflects cleared shield
 											return { ...timerState, ...clearShieldState(timerState) };
 										}
 
@@ -642,138 +695,148 @@ export function createGameplayActions(
 											timerState.shieldDurationRemaining - SHIELD_TIMER_INTERVAL_MS;
 
 										if (newRemaining <= 0) {
-											// Shield expired, clear interval and state
 											clearInterval(intervalId);
 											return { ...timerState, ...clearShieldState(timerState) };
 										} else {
-											// Update remaining time
 											return { ...timerState, shieldDurationRemaining: newRemaining };
 										}
 									});
 								}, SHIELD_TIMER_INTERVAL_MS);
 
-								// Store the interval ID in the state
 								return { ...currentState, shieldTimerIntervalId: intervalId as unknown as number };
 							});
 						};
 
-						// Use setTimeout to ensure the state update happens before the interval starts
 						setTimeout(startShieldTimerAction, 0);
 					}
-				} else {
-					// Incorrect answer
-					currentActiveBonuses = []; // Reset bonuses
-					intermediateState.consecutiveWrongAnswers += 1; // Increment counter
 
-					// ---> CHANGE: Apply feedback logic for level 1, 2 or 3 <---
-					if (
+					const finalState = {
+						...intermediateState,
+						gameStatus: GameStatus.RESULT,
+						lastAnswerCorrect: true,
+						lastSpellCast: initialStateForCast.selectedSpell,
+						lastPlayerInput: currentInput,
+						lastFullEquation: fullEquation,
+						activeBonuses: currentActiveBonuses,
+						evaluationError: null,
+						playerInput: intermediateState.enemyJustDefeated ? currentInput : '',
+						showCrafterFeedback: false,
+						crafterFeedbackDetails: null,
+						feedbackTimeoutId: null,
+						isFeedbackActive: false,
+						usedCraftedEquations: newUsedEquations,
+						levelEndTime: intermediateState.levelEndTime
+					};
+					return finalState;
+				} else {
+					currentActiveBonuses = [];
+					intermediateState.consecutiveWrongAnswers += 1;
+
+					const shouldShowDetailedFeedback =
 						intermediateState.gameMode === 'crafter' &&
-						(intermediateState.currentLevelNumber === 1 ||
-							intermediateState.currentLevelNumber === 2 ||
-							intermediateState.currentLevelNumber === 3) && // Include level 3
-						!evaluationResult.error && // Only show if equation itself was valid
-						!initialStateForCast.usedCraftedEquations.has(initialStateForCast.craftedEquationString) // Don't show feedback if it was rejected for reuse
-					) {
-						const correctValue = expected; // Expected numeric value
+						intermediateState.currentLevelNumber <= 3 &&
+						!evaluationResult.error;
+
+					if (shouldShowDetailedFeedback) {
+						console.log('Incorrect answer, showing detailed feedback.');
 						intermediateState.crafterFeedbackDetails = {
 							incorrectEq: intermediateState.craftedEquationString,
 							incorrectVal: currentInput,
-							correctVal: correctValue,
+							correctVal: expected,
 							steps: evaluationResult.steps
 						};
 						intermediateState.showCrafterFeedback = true;
 
-						// Clear previous timeout if any
-						if (intermediateState.crafterFeedbackTimeoutId) {
-							clearTimeout(intermediateState.crafterFeedbackTimeoutId);
+						if (intermediateState.feedbackTimeoutId) {
+							clearTimeout(intermediateState.feedbackTimeoutId);
 						}
 
-						// Set timeout to hide feedback
-						intermediateState.crafterFeedbackTimeoutId = setTimeout(() => {
+						const newTimeoutId = setTimeout(() => {
 							update((s) => {
-								// Check if feedback is still relevant before clearing
-								if (
-									s.showCrafterFeedback &&
-									s.crafterFeedbackDetails?.incorrectEq ===
-										intermediateState.crafterFeedbackDetails?.incorrectEq &&
-									s.currentLevelNumber === intermediateState.currentLevelNumber
-								) {
-									return { ...s, showCrafterFeedback: false, crafterFeedbackTimeoutId: null };
+								if (s.isFeedbackActive && s.showCrafterFeedback) {
+									return {
+										...s,
+										isFeedbackActive: false,
+										showCrafterFeedback: false,
+										crafterFeedbackDetails: null,
+										feedbackTimeoutId: null,
+										playerInput: '',
+										craftedEquationString: '',
+										isCraftedEquationValidForLevel: false,
+										isCraftingPhase: true
+									};
 								}
 								return s;
 							});
 						}, crafterFeedbackDuration);
+						intermediateState.feedbackTimeoutId = newTimeoutId as unknown as number;
 					} else {
-						// Clear feedback if not level 1, 2 or 3 incorrect crafter
 						intermediateState.showCrafterFeedback = false;
 						intermediateState.crafterFeedbackDetails = null;
-						if (intermediateState.crafterFeedbackTimeoutId) {
-							clearTimeout(intermediateState.crafterFeedbackTimeoutId);
-							intermediateState.crafterFeedbackTimeoutId = null;
+						if (intermediateState.feedbackTimeoutId) {
+							clearTimeout(intermediateState.feedbackTimeoutId);
+							intermediateState.feedbackTimeoutId = null;
 						}
 					}
-					// ---> END CHANGE <---
 
-					// Apply health penalty if tolerance exceeded
-					if (intermediateState.consecutiveWrongAnswers > wrongAnswerTolerance) {
+					// Apply health penalty if tolerance exceeded (only if not showing feedback that pauses game)
+					if (
+						intermediateState.consecutiveWrongAnswers > wrongAnswerTolerance &&
+						!shouldShowDetailedFeedback
+					) {
 						const newPlayerHealth = Math.max(
 							0,
 							intermediateState.playerHealth - wrongAnswerPenalty
 						);
 						intermediateState.playerHealth = newPlayerHealth;
 						if (newPlayerHealth <= 0) {
-							// Player is defeated due to penalty
 							setTimeout(() => setGameOver('Defeated by Mistakes!'), 0);
 							console.log(`Player HP Updated: ${newPlayerHealth} (Defeated by Mistakes)`);
 							intermediateState.gameStatus = GameStatus.GAME_OVER;
 							intermediateState.resultMessage = 'Defeated by Mistakes!';
 						}
 					}
-				}
 
-				// Final state update
-				const finalState = {
-					...intermediateState,
-					// Go to RESULT state even if enemy was defeated, component sequence handles next step
-					gameStatus: GameStatus.RESULT,
-					lastAnswerCorrect: answerIsCorrect,
-					lastSpellCast: initialStateForCast.selectedSpell,
-					lastPlayerInput: currentInput,
-					lastFullEquation: fullEquation,
-					activeBonuses: currentActiveBonuses,
-					evaluationError: evaluationErrorMessage,
-					// Clear input ONLY if enemy wasn't just defeated (allow seeing final input during animation)
-					playerInput: intermediateState.enemyJustDefeated ? currentInput : '',
-					// Pass feedback state through
-					showCrafterFeedback: intermediateState.showCrafterFeedback,
-					crafterFeedbackDetails: intermediateState.crafterFeedbackDetails,
-					crafterFeedbackTimeoutId: intermediateState.crafterFeedbackTimeoutId,
-					// Add the equation to the used set if it was correct (for crafter mode)
-					usedCraftedEquations: newUsedEquations
-				};
-
-				return finalState;
-			}),
-		tickTime: () =>
-			update((state) => {
-				if (state.gameStatus !== GameStatus.SOLVING) return state;
-				const newTime = Math.max(0, state.gameTime - 1);
-				const intermediateState = { ...state, gameTime: newTime };
-
-				if (newTime <= 0) {
-					setTimeout(() => setGameOver('Time Out!'), 0);
 					const finalState = {
 						...intermediateState,
-						gameStatus: GameStatus.GAME_OVER,
-						resultMessage: 'Time Out!'
+						gameStatus: shouldShowDetailedFeedback ? GameStatus.SOLVING : GameStatus.RESULT,
+						isFeedbackActive: shouldShowDetailedFeedback,
+						lastAnswerCorrect: false,
+						lastSpellCast: initialStateForCast.selectedSpell,
+						lastPlayerInput: currentInput,
+						lastFullEquation: fullEquation,
+						activeBonuses: [],
+						evaluationError: evaluationErrorMessage,
+						playerInput: shouldShowDetailedFeedback ? currentInput : '',
+						showCrafterFeedback: intermediateState.showCrafterFeedback,
+						crafterFeedbackDetails: intermediateState.crafterFeedbackDetails,
+						feedbackTimeoutId: intermediateState.feedbackTimeoutId,
+						usedCraftedEquations: newUsedEquations,
+						levelEndTime: intermediateState.levelEndTime
 					};
 					return finalState;
 				}
-				return intermediateState;
 			}),
+		finalizeVictory: () => setGameOver('Victory!'),
+		resetAttackTimer: (seconds: number) => {
+			update((state) => ({
+				...state,
+				attackTimeRemaining: seconds,
+				maxAttackTime: seconds
+			}));
+		},
+		tickAttackTimer: () => {
+			update((state) => {
+				const newAttackTimeRemaining = Math.max(0, state.attackTimeRemaining - 0.1);
+
+				return {
+					...state,
+					attackTimeRemaining: newAttackTimeRemaining
+				};
+			});
+		},
 		clearShieldState: () =>
 			update((state) => {
-				// Directly return the result of the helper function merged with the state
 				return { ...state, ...clearShieldState(state) };
 			})
 	};
@@ -813,7 +876,8 @@ export function createTutorialActions(update: StoreUpdater) {
 						...state,
 						tutorialStep: 0,
 						needsCrafterTutorial: false,
-						gameStatus: GameStatus.SOLVING
+						gameStatus: GameStatus.SOLVING,
+						levelStartTime: Date.now() // Set start time when skipping tutorial
 					};
 				} else {
 					console.warn('skipTutorialAndStart called in unexpected state:', state);

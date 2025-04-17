@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { GameMode, DisplaySegment } from '../../types';
 	import { GameStatus } from '../../types';
+	import FeedbackOverlay from '../FeedbackOverlay.svelte';
 
 	export let gameMode: GameMode | null = null;
 	export let gameStatus: GameStatus;
@@ -11,7 +12,28 @@
 	export let crafterSolvingEqSegments: DisplaySegment[] = [];
 	export let crafterSolvingInputSegments: DisplaySegment[] = [];
 	export let crafterResultSegments: DisplaySegment[] = [];
-	export let evaluationError: string | null = null; // Added for error state display
+	export let evaluationError: string | null = null;
+	export let isFeedbackActive: boolean = false;
+	export let showCrafterFeedback: boolean = false;
+	export let crafterFeedbackDetails: {
+		incorrectEq: string;
+		incorrectVal: string;
+		correctVal: number | null;
+		steps: string[];
+	} | null = null;
+
+	$: incorrectAttemptSegments = crafterFeedbackDetails
+		? parseEquationForDisplay(
+				`${crafterFeedbackDetails.incorrectEq} = ${crafterFeedbackDetails.incorrectVal}`,
+				1
+			)
+		: [];
+
+	$: correctSequenceSegments = crafterFeedbackDetails?.steps
+		? parseEquationForDisplay(crafterFeedbackDetails.steps.join(' = '), 1)
+		: [];
+
+	import { parseEquationForDisplay } from '../../utils/display';
 </script>
 
 {#if gameMode === 'solver'}
@@ -59,7 +81,19 @@
 	{/if}
 {:else if gameMode === 'crafter'}
 	{#if gameStatus === GameStatus.SOLVING}
-		{#if isCraftingPhase}
+		{#if isFeedbackActive}
+			{#if evaluationError === 'Equation already used!'}
+				<!-- Show duplicate feedback error -->
+				<span class="info-text eval-error-text">{evaluationError}</span>
+			{:else if showCrafterFeedback && crafterFeedbackDetails}
+				<!-- Show incorrect answer feedback overlay -->
+				<FeedbackOverlay
+					{incorrectAttemptSegments}
+					{correctSequenceSegments}
+					correctVal={crafterFeedbackDetails.correctVal}
+				/>
+			{/if}
+		{:else if isCraftingPhase}
 			<!-- Crafter: Crafting Equation -->
 			<span class="equation-text">
 				{#each crafterCraftingSegments as segment, i (i)}
@@ -107,7 +141,7 @@
 		{/if}
 	{:else if gameStatus === GameStatus.RESULT}
 		{#if evaluationError}
-			<!-- Crafter: Evaluation Error Message -->
+			<!-- Crafter: FINAL Evaluation Error Message (e.g., structural) -->
 			<span class="info-text eval-error-text">{evaluationError}</span>
 		{:else}
 			<!-- Crafter: Result Equation -->

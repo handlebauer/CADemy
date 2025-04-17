@@ -17,8 +17,8 @@ import { prepareNextRoundInternal } from './helpers';
 export interface ArenaState {
 	playerHealth: number;
 	enemyHealth: number;
-	gameTime: number;
-	startTime: number;
+	attackTimeRemaining: number;
+	maxAttackTime: number;
 	currentEquation: string;
 	expectedAnswer: number;
 	playerInput: string;
@@ -60,13 +60,17 @@ export interface ArenaState {
 	usedCraftedEquations: Set<string>;
 	currentLevelBonuses: BonusConfig[];
 	totalBonusesApplied: BonusConfig[];
+	isFeedbackActive: boolean;
+	feedbackTimeoutId: number | null;
+	levelStartTime: number | null;
+	levelEndTime: number | null;
 }
 
 export const initialArenaState: ArenaState = {
 	playerHealth: 100,
 	enemyHealth: 100,
-	gameTime: 90,
-	startTime: 90,
+	attackTimeRemaining: 20,
+	maxAttackTime: 20,
 	currentEquation: '',
 	expectedAnswer: 0,
 	playerInput: '',
@@ -102,7 +106,11 @@ export const initialArenaState: ArenaState = {
 	shieldTimerIntervalId: null,
 	usedCraftedEquations: new Set<string>(),
 	currentLevelBonuses: [],
-	totalBonusesApplied: []
+	totalBonusesApplied: [],
+	isFeedbackActive: false,
+	feedbackTimeoutId: null,
+	levelStartTime: null,
+	levelEndTime: null
 };
 
 // --- Store Creation Logic ---

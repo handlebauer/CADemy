@@ -69,6 +69,11 @@ export const generateSolverEquation = (levelNumber: number): Partial<ArenaState>
 
 // Helper function to prepare the next round
 export const prepareNextRoundInternal = (state: ArenaState): ArenaState => {
+	// Clear timeouts for feedback
+	if (state.feedbackTimeoutId) {
+		clearTimeout(state.feedbackTimeoutId);
+	}
+
 	const baseNextRoundState: Partial<ArenaState> = {
 		playerInput: '',
 		selectedSpell: state.selectedSpell || 'FIRE',
@@ -80,16 +85,16 @@ export const prepareNextRoundInternal = (state: ArenaState): ArenaState => {
 		activeBonuses: [],
 		evaluationError: null,
 		showCrafterFeedback: false,
-		crafterFeedbackDetails: null
+		crafterFeedbackDetails: null,
+		crafterFeedbackTimeoutId: null,
+		// Reset feedback state
+		isFeedbackActive: false,
+		feedbackTimeoutId: null
 	};
 
-	if (state.crafterFeedbackTimeoutId) {
-		clearTimeout(state.crafterFeedbackTimeoutId);
-	}
 	const nextStateBase = {
 		...state,
-		...baseNextRoundState,
-		crafterFeedbackTimeoutId: null
+		...baseNextRoundState
 	};
 
 	switch (state.gameMode) {

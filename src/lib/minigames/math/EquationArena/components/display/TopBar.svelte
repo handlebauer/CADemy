@@ -1,7 +1,8 @@
 <script lang="ts">
 	export let playerHealth: number;
 	export let isShieldActive: boolean;
-	export let gameTime: number;
+	export let attackTimeRemaining: number;
+	export let maxAttackTime: number;
 	export let formattedTime: string;
 	export let playerHit: boolean = false;
 	export let damageTaken: number | null = null;
@@ -9,16 +10,16 @@
 </script>
 
 <div class="top-bar">
-	<div class="health-player">
-		<span class="heart-icon" class:heart-shake={playerHit}>❤️</span>
+	<div class="status-container health-player">
+		<span class="icon heart-icon" class:heart-shake={playerHit}>❤️</span>
 		<div
-			class="player-health-bar-container"
+			class="bar-container player-health-bar-container"
 			class:shield-active={isShieldActive}
 			class:player-hit-flash={playerHit}
 		>
-			<div class="player-health-bar-fill" style="width: {playerHealth}%;"></div>
+			<div class="bar-fill player-health-bar-fill" style="width: {playerHealth}%;"></div>
 		</div>
-		<span class="player-health-value">{playerHealth}/100</span>
+		<span class="value-text player-health-value">{playerHealth}/100</span>
 		{#if (playerHit && damageTaken !== null) || shieldBlockedHit}
 			<span class="damage-taken-text animate-player-damage" class:blocked={shieldBlockedHit}>
 				{#if shieldBlockedHit}
@@ -29,8 +30,19 @@
 			</span>
 		{/if}
 	</div>
-	<div class="timer" class:low-time={gameTime > 0 && gameTime < 10}>
-		⏱️ {formattedTime.replace('Time: ', '')}
+
+	<div
+		class="status-container timer"
+		class:low-time={attackTimeRemaining > 0 && attackTimeRemaining <= maxAttackTime * 0.3}
+	>
+		<span class="icon timer-icon">⏱️</span>
+		<div class="bar-container attack-timer-bar-container">
+			<div
+				class="bar-fill attack-timer-bar-fill"
+				style="width: {(attackTimeRemaining / maxAttackTime) * 100}%;"
+			></div>
+		</div>
+		<span class="value-text timer-text">{formattedTime.replace('Time: ', '')}</span>
 	</div>
 </div>
 
@@ -46,33 +58,93 @@
 		position: relative;
 	}
 
-	.health-player {
-		color: #e74c3c;
-		font-size: 1.5rem;
+	/* Common styling for both status containers - let width be determined by content */
+	.status-container {
 		font-weight: bold;
-		background-color: rgba(231, 76, 60, 0.1);
-		padding: 0.5rem 1rem;
+		padding: 0.5rem 0.8rem;
 		border-radius: 6px;
+		margin: 0;
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		min-width: 180px;
 		position: relative;
+	}
+
+	/* Health player specific styling - health text is wider */
+	.health-player {
+		color: #e74c3c;
+		font-size: 1.5rem;
+		background-color: rgba(231, 76, 60, 0.1);
+	}
+
+	/* Timer specific styling - timer text is narrower */
+	.timer {
+		color: #3498db;
+		font-size: 1.5rem;
+		background-color: rgba(52, 152, 219, 0.1);
+	}
+
+	/* Common styling for icons */
+	.icon {
+		font-size: 1.5rem;
+	}
+
+	/* Bar container - fixed width for both */
+	.bar-container {
+		width: 80px; /* Fixed width for both bars */
+		height: 10px;
+		border-radius: 3px;
+		overflow: hidden;
+		position: relative;
+		flex-shrink: 0; /* Prevent bars from shrinking */
+	}
+
+	/* Health bar specific */
+	.player-health-bar-container {
+		border: 2px solid #e74c3c;
+		background-color: #f8d7da;
+		transition: border-color 0.3s ease;
+	}
+
+	/* Timer bar specific */
+	.attack-timer-bar-container {
+		border: 2px solid #3498db;
+		background-color: rgba(52, 152, 219, 0.1);
+	}
+
+	/* Common styling for bar fills */
+	.bar-fill {
+		height: 100%;
+		transition: width 0.3s ease-in-out;
+	}
+
+	.player-health-bar-fill {
+		background-color: #e74c3c;
+	}
+
+	.attack-timer-bar-fill {
+		background-color: #3498db;
+		transition: width 0.1s linear;
+	}
+
+	/* Common styling for value text */
+	.value-text {
+		font-size: 1.1rem;
+		font-weight: bold;
+		text-align: left;
+		white-space: nowrap;
+	}
+
+	.player-health-value {
+		min-width: 4rem; /* Wider for "100/100" format */
+	}
+
+	.timer-text {
+		min-width: 2rem; /* Narrower for "9s" format */
 	}
 
 	.heart-icon.heart-shake {
 		animation: heart-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-	}
-
-	.player-health-bar-container {
-		width: 80px;
-		height: 10px;
-		border: 2px solid #e74c3c;
-		border-radius: 3px;
-		overflow: hidden;
-		background-color: #f8d7da;
-		position: relative;
-		transition: border-color 0.3s ease;
 	}
 
 	.player-health-bar-container.player-hit-flash {
@@ -87,20 +159,6 @@
 
 	.player-health-bar-container.player-hit-flash.shield-active {
 		animation: player-bar-flash 0.4s ease-out;
-	}
-
-	.player-health-bar-fill {
-		height: 100%;
-		background-color: #e74c3c;
-		border-radius: 0;
-		transition: width 0.3s ease-in-out;
-	}
-
-	.player-health-value {
-		font-size: 0.9em;
-		font-weight: bold;
-		color: #e74c3c;
-		line-height: 1;
 	}
 
 	.damage-taken-text {
@@ -121,21 +179,17 @@
 		color: #3498db;
 	}
 
-	.timer {
-		color: #3498db;
-		font-size: 1.5rem;
-		font-weight: bold;
-		background-color: rgba(52, 152, 219, 0.1);
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		margin: 0;
-		min-width: 100px;
-		text-align: center;
-	}
-
 	.timer.low-time {
 		color: #e74c3c;
 		animation: low-time-pulse 1s infinite;
+	}
+
+	.timer.low-time .attack-timer-bar-container {
+		border-color: #e74c3c;
+	}
+
+	.timer.low-time .attack-timer-bar-fill {
+		background-color: #e74c3c;
 	}
 
 	@keyframes low-time-pulse {

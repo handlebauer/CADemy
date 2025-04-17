@@ -40,8 +40,9 @@ export interface EnemyConfig {
 	id: string;
 	name: string;
 	health: number;
-	attackInterval: number;
+	attackIntervalMs: number; // How frequently enemy attacks (milliseconds)
 	damage: number;
+	solveTimeSec: number; // Time in seconds player has to solve before damage
 	sprite?: string; // Optional sprite path
 	icon: string; // Add icon property
 	color?: string; // Optional color for UI theming

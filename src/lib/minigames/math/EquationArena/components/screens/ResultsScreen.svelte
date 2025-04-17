@@ -3,13 +3,28 @@
 
 	export let playerHealth: number;
 	export let equationsSolvedCorrectly: number;
-	export let formattedTimeTaken: string;
+	export let formattedLevelDuration: string;
 	export let currentLevelBonuses: BonusConfig[] = [];
 
 	// Declare handlers purely as props expecting functions from the parent
 	export let handleExit: () => void;
 	export let handleNextLevel: () => void;
 	export let handleTryAgain: () => void;
+
+	// Reactive block to aggregate bonuses
+	$: aggregatedBonuses = currentLevelBonuses.reduce(
+		(acc, bonus) => {
+			if (!acc[bonus.id]) {
+				acc[bonus.id] = { ...bonus, count: 0 };
+			}
+			acc[bonus.id].count++;
+			return acc;
+		},
+		{} as Record<string, BonusConfig & { count: number }>
+	);
+
+	// Convert the aggregated object back to an array for easier iteration in the template
+	$: displayedBonuses = Object.values(aggregatedBonuses);
 </script>
 
 <div class="results-screen">
@@ -37,19 +52,19 @@
 			<div class="metric-header">
 				<span class="metric-label">TIME</span>
 			</div>
-			<div class="metric-value">{formattedTimeTaken}</div>
+			<div class="metric-value">{formattedLevelDuration}</div>
 		</div>
 	</div>
 
-	<!-- Display Bonuses -->
-	{#if currentLevelBonuses.length > 0}
+	<!-- Display Aggregated Bonuses -->
+	{#if displayedBonuses.length > 0}
+		<h2>Bonuses Applied This Level:</h2>
 		<div class="bonus-cards">
-			{#each currentLevelBonuses as bonus (bonus.name)}
+			{#each displayedBonuses as bonus (bonus.id)}
 				<div class="bonus-badge">
 					<span class="bonus-emoji">🌟</span>
 					<span class="bonus-text">
-						<span class="bonus-name">{bonus.name}</span>
-						<span class="bonus-multiplier">×{bonus.powerMultiplier}</span>
+						<span class="bonus-name">{bonus.name} (x{bonus.count})</span>
 					</span>
 				</div>
 			{/each}
@@ -151,12 +166,6 @@
 	.star:nth-child(6) {
 		left: 90%;
 		animation-delay: 0.4s;
-	}
-
-	.results-stats p {
-		margin: 0.5rem 0;
-		font-size: 1.1rem;
-		color: #333;
 	}
 
 	.results-feedback-prompt {
@@ -276,11 +285,6 @@
 	.bonus-name {
 		font-weight: bold;
 		color: #ff9800;
-	}
-
-	.bonus-multiplier {
-		color: #2196f3;
-		font-weight: bold;
 	}
 
 	.metrics {

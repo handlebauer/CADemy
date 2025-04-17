@@ -51,8 +51,7 @@
 	};
 
 	// --- Local Component State (Timers, Intervals) ---
-	let gameTimerInterval: number | null = null;
-	let enemyAttackIntervalTimer: number | null = null;
+	let attackTimerInterval: number | null = null;
 	let nextRoundTimeout: number | null = null;
 	let enemyDefeatedTimeout: number | null = null;
 	let damageDisplayTimeout: number | null = null;
@@ -102,8 +101,7 @@
 
 	// Helper function to stop all intervals/timeouts
 	function stopGameTimers() {
-		if (enemyAttackIntervalTimer) clearInterval(enemyAttackIntervalTimer);
-		if (gameTimerInterval) clearInterval(gameTimerInterval);
+		if (attackTimerInterval) clearInterval(attackTimerInterval);
 		if (nextRoundTimeout) clearTimeout(nextRoundTimeout);
 		if (enemyDefeatedTimeout) clearTimeout(enemyDefeatedTimeout);
 		if (damageDisplayTimeout) clearTimeout(damageDisplayTimeout);
@@ -114,8 +112,7 @@
 		if (shieldBlockedHitTimeout) clearTimeout(shieldBlockedHitTimeout);
 
 		// Reset all timer variables
-		enemyAttackIntervalTimer = null;
-		gameTimerInterval = null;
+		attackTimerInterval = null;
 		nextRoundTimeout = null;
 		enemyDefeatedTimeout = null;
 		damageDisplayTimeout = null;
@@ -356,29 +353,148 @@
 		arenaStore.startGame();
 	}
 
-	// --- Sequence Handler Functions ---
-	// New sequence handler specifically for victory
-	function handleEnemyVictorySequence() {
-		// Prevent re-triggering if timeout already active or game already over
-		if (enemyDefeatedTimeout || $arenaStore.gameStatus === GameStatus.GAME_OVER) return;
+	// --- Timer Management ---
+	// Helper function to start the attack timer using current enemy config
+	function startAttackTimer(enemyConfig: ArenaState['currentEnemyConfig']) {
+		if (!enemyConfig) return; // Safety check
+		if (attackTimerInterval) clearInterval(attackTimerInterval); // Clear existing if any
 
-		console.log('Triggering Enemy Victory Sequence');
-		stopGameTimers(); // Stop other game timers
-		enemyDefeatedAnimating = true;
+		// Set the initial attack time from enemy config
+		arenaStore.resetAttackTimer(enemyConfig.solveTimeSec);
 
-		// Set a timeout to allow animation to play before finalizing game over
-		enemyDefeatedTimeout = setTimeout(() => {
-			console.log('Enemy Victory Timeout -> Finalizing Victory');
-			// Double check status before setting game over (might have reset)
-			if ($arenaStore.gameStatus !== GameStatus.GAME_OVER) {
-				arenaStore.finalizeVictory();
+		// Define telegraph duration once
+		const TELEGRAPH_DURATION = 1500; // ms
+
+		// Flag to track if telegraphing has started for this attack cycle
+		let hasTelegraphStarted = false;
+
+		// Start the countdown interval
+		attackTimerInterval = setInterval(() => {
+			// Check if feedback is active first
+			if ($arenaStore.isFeedbackActive) {
+				// Timer is paused while feedback is active
+				// Ensure telegraphing is also paused/reset
+				if (isEnemyTelegraphing) {
+					isEnemyTelegraphing = false;
+				}
+				return; // Skip timer tick and attack logic
 			}
-			enemyDefeatedTimeout = null;
-			// Animation flag can reset automatically based on game status change
-			// or be explicitly reset if needed when ResultsScreen shows.
-		}, 1500); // Increased from 1000ms to 1500ms to give bonus animation more time
+
+			// If not showing feedback and game is solving...
+			if ($arenaStore.gameStatus === GameStatus.SOLVING) {
+				// Decrement timer if time remains
+				if ($arenaStore.attackTimeRemaining > 0) {
+					arenaStore.tickAttackTimer();
+
+					// Start telegraphing when there's exactly TELEGRAPH_DURATION milliseconds left
+					const timeRemainingMs = $arenaStore.attackTimeRemaining * 1000;
+					if (timeRemainingMs <= TELEGRAPH_DURATION && !hasTelegraphStarted) {
+						isEnemyTelegraphing = true;
+						hasTelegraphStarted = true;
+					}
+				}
+				// When timer reaches 0, execute the attack immediately
+				else if ($arenaStore.attackTimeRemaining <= 0) {
+					// Stop the timer interval
+					if (attackTimerInterval) clearInterval(attackTimerInterval);
+					attackTimerInterval = null;
+
+					// Execute attack
+					if ($arenaStore.gameStatus === GameStatus.SOLVING) {
+						// Check if shield will block
+						const shieldWillBlock = $arenaStore.isShieldActive;
+
+						// Trigger shield block visual effect if needed
+						if (shieldWillBlock) {
+							if (shieldBlockedHitTimeout) clearTimeout(shieldBlockedHitTimeout);
+							shieldBlockedHit = true;
+							shieldBlockedHitTimeout = setTimeout(() => {
+								shieldBlockedHit = false;
+								shieldBlockedHitTimeout = null;
+							}, 600);
+
+							// Also trigger screen edge flash for shield hit
+							triggerShieldHitFeedback();
+						}
+
+						// Apply damage or block it
+						arenaStore.receivePlayerDamage(enemyConfig.damage);
+
+						// Clear shield after blocking
+						if (shieldWillBlock) {
+							arenaStore.clearShieldState();
+						}
+
+						// Reset telegraph state
+						isEnemyTelegraphing = false;
+
+						// Start new attack cycle
+						if ($arenaStore.gameStatus === GameStatus.SOLVING && enemyConfig) {
+							startAttackTimer(enemyConfig);
+						}
+					}
+				}
+			}
+			// If game state is not SOLVING, clear interval and reset telegraph
+			else {
+				if (attackTimerInterval) clearInterval(attackTimerInterval);
+				attackTimerInterval = null;
+				isEnemyTelegraphing = false;
+			}
+		}, 100);
 	}
 
+	// --- Reactive Statements ---
+	$: {
+		if (
+			$arenaStore.gameStatus === GameStatus.SOLVING &&
+			!gameStarted &&
+			$arenaStore.currentEnemyConfig
+		) {
+			console.log('Reactive: Game Status == SOLVING & !gameStarted -> Starting Timers');
+			// Start the attack timer immediately when the level begins
+			startAttackTimer($arenaStore.currentEnemyConfig);
+			gameStarted = true; // Mark timers as started for this game instance
+			enemyDefeatedAnimating = false; // Reset defeat animation flag for new level
+		} else if (
+			($arenaStore.gameStatus === GameStatus.GAME_OVER ||
+				$arenaStore.gameStatus === GameStatus.PRE_GAME) &&
+			gameStarted // Only reset if it was previously true
+		) {
+			console.log('Reactive: Game Ended/Reset -> Stopping Timers & Resetting gameStarted');
+			stopGameTimers(); // Stop timers when game ends or resets
+			gameStarted = false; // Reset for next game
+		}
+	}
+
+	// Modified reactive block to handle RESULT state and trigger victory sequence
+	$: {
+		if ($arenaStore.gameStatus === GameStatus.RESULT) {
+			// Always handle damage and bonus display regardless of enemy defeat
+			handleDamageDisplaySequence();
+
+			if ($arenaStore.enemyJustDefeated) {
+				// Enemy defeated, trigger victory sequence
+				console.log(
+					'Reactive: Game Status == RESULT & enemyJustDefeated -> Calling Victory Sequence'
+				);
+				handleEnemyVictorySequence();
+			} else {
+				// Normal RESULT state, handle next round
+				console.log('Reactive: Game Status == RESULT -> Calling Next Round Sequence');
+				handleNextRoundSequence(); // Checks conditions internally
+			}
+		} else if ($arenaStore.gameStatus !== GameStatus.GAME_OVER && enemyDefeatedAnimating) {
+			// Reset animation flag if game status changes away from GAME_OVER (e.g., reset)
+			// This might need refinement depending on when ResultsScreen takes over.
+			console.log('Reactive: Resetting enemyDefeatedAnimating flag');
+			enemyDefeatedAnimating = false;
+		}
+	}
+
+	// --- Timer Management ---
+
+	// Helper function to handle damage display sequence
 	function handleDamageDisplaySequence() {
 		// Only run if damage should be displayed (Correct FIRE spell in RESULT state)
 		if (
@@ -440,142 +556,42 @@
 			// Check status again before proceeding
 			if ($arenaStore.gameStatus !== GameStatus.GAME_OVER) {
 				arenaStore.prepareNextRound();
+
+				// After preparation, restart the attack timer for the next round
+				if ($arenaStore.currentEnemyConfig) {
+					// Slight delay to let state update
+					setTimeout(() => {
+						if ($arenaStore.gameStatus === GameStatus.SOLVING) {
+							startAttackTimer($arenaStore.currentEnemyConfig);
+						}
+					}, 100);
+				}
 			}
 			nextRoundTimeout = null;
 		}, delay); // Use calculated delay
 	}
 
-	// --- Reactive Statements ---
+	// --- Sequence Handler Functions ---
+	// New sequence handler specifically for victory
+	function handleEnemyVictorySequence() {
+		// Prevent re-triggering if timeout already active or game already over
+		if (enemyDefeatedTimeout || $arenaStore.gameStatus === GameStatus.GAME_OVER) return;
 
-	$: {
-		if (
-			$arenaStore.gameStatus === GameStatus.SOLVING &&
-			!gameStarted &&
-			$arenaStore.currentEnemyConfig
-		) {
-			console.log('Reactive: Game Status == SOLVING & !gameStarted -> Starting Timers');
-			startEnemyAttackTimer($arenaStore.currentEnemyConfig);
-			startGameTimer();
-			gameStarted = true; // Mark timers as started for this game instance
-			enemyDefeatedAnimating = false; // Reset defeat animation flag for new level
-		} else if (
-			($arenaStore.gameStatus === GameStatus.GAME_OVER ||
-				$arenaStore.gameStatus === GameStatus.PRE_GAME) &&
-			gameStarted // Only reset if it was previously true
-		) {
-			console.log('Reactive: Game Ended/Reset -> Stopping Timers & Resetting gameStarted');
-			stopGameTimers(); // Stop timers when game ends or resets
-			gameStarted = false; // Reset for next game
-		}
-	}
+		console.log('Triggering Enemy Victory Sequence');
+		stopGameTimers(); // Stop other game timers
+		enemyDefeatedAnimating = true;
 
-	// Modified reactive block to handle RESULT state and trigger victory sequence
-	$: {
-		if ($arenaStore.gameStatus === GameStatus.RESULT) {
-			// Always handle damage and bonus display regardless of enemy defeat
-			handleDamageDisplaySequence();
-
-			if ($arenaStore.enemyJustDefeated) {
-				// Enemy defeated, trigger victory sequence
-				console.log(
-					'Reactive: Game Status == RESULT & enemyJustDefeated -> Calling Victory Sequence'
-				);
-				handleEnemyVictorySequence();
-			} else {
-				// Normal RESULT state, handle next round
-				console.log('Reactive: Game Status == RESULT -> Calling Next Round Sequence');
-				handleNextRoundSequence(); // Checks conditions internally
+		// Set a timeout to allow animation to play before finalizing game over
+		enemyDefeatedTimeout = setTimeout(() => {
+			console.log('Enemy Victory Timeout -> Finalizing Victory');
+			// Double check status before setting game over (might have reset)
+			if ($arenaStore.gameStatus !== GameStatus.GAME_OVER) {
+				arenaStore.finalizeVictory();
 			}
-		} else if ($arenaStore.gameStatus !== GameStatus.GAME_OVER && enemyDefeatedAnimating) {
-			// Reset animation flag if game status changes away from GAME_OVER (e.g., reset)
-			// This might need refinement depending on when ResultsScreen takes over.
-			console.log('Reactive: Resetting enemyDefeatedAnimating flag');
-			enemyDefeatedAnimating = false;
-		}
-	}
-
-	// --- Timer Management ---
-
-	// Helper function to start the enemy timer using current enemy config
-	function startEnemyAttackTimer(enemyConfig: ArenaState['currentEnemyConfig']) {
-		if (!enemyConfig) return; // Safety check
-		if (enemyAttackIntervalTimer) clearInterval(enemyAttackIntervalTimer); // Clear existing if any
-		if (telegraphTimeout) clearTimeout(telegraphTimeout); // Clear existing telegraph timeout
-
-		const attackInterval = enemyConfig.attackInterval;
-		const attackDamage = enemyConfig.damage;
-		const telegraphDuration = 1500; // Duration of telegraph animation (ms)
-
-		enemyAttackIntervalTimer = setInterval(() => {
-			// Check status *inside* the interval callback
-			if ($arenaStore.gameStatus === GameStatus.SOLVING) {
-				// Start telegraphing
-				isEnemyTelegraphing = true;
-
-				// Clear any pending damage timeout from a previous cycle (unlikely but safe)
-				if (telegraphTimeout) clearTimeout(telegraphTimeout);
-
-				// Set timeout for the actual damage AFTER the telegraph duration
-				telegraphTimeout = setTimeout(() => {
-					// Check status again *inside* the damage timeout
-					// Allow damage/block if game is in progress (not ended/reset)
-					if (
-						$arenaStore.gameStatus === GameStatus.SOLVING ||
-						$arenaStore.gameStatus === GameStatus.RESULT
-					) {
-						const shieldWillBlock = $arenaStore.isShieldActive;
-
-						// Trigger shield block visual effect *before* damage action
-						if (shieldWillBlock) {
-							if (shieldBlockedHitTimeout) clearTimeout(shieldBlockedHitTimeout);
-							shieldBlockedHit = true;
-							shieldBlockedHitTimeout = setTimeout(() => {
-								shieldBlockedHit = false;
-								shieldBlockedHitTimeout = null;
-							}, 600); // Match damage text duration
-
-							// Also trigger screen edge flash for shield hit
-							triggerShieldHitFeedback();
-						}
-
-						// Call the store action to apply damage (or block it)
-						arenaStore.receivePlayerDamage(attackDamage);
-
-						// Ensure shield is cleared after blocking
-						if (shieldWillBlock) {
-							arenaStore.clearShieldState();
-						}
-
-						// Player hit feedback (damage text, health bar flash, heart shake)
-						// is handled reactively by the $: block monitoring $arenaStore.playerHealth
-						// This will NOT trigger if the shield blocked the damage, because playerHealth won't change.
-					}
-					// Stop telegraphing *after* damage sequence
-					isEnemyTelegraphing = false;
-					telegraphTimeout = null; // Clear the timeout ref
-				}, telegraphDuration);
-			} else {
-				// If not solving when interval fires, ensure telegraphing is off
-				isEnemyTelegraphing = false;
-				if (telegraphTimeout) clearTimeout(telegraphTimeout); // Clear pending damage too
-				telegraphTimeout = null;
-			}
-		}, attackInterval); // Interval triggers the start of the process
-	}
-
-	// Helper function to start the game timer
-	function startGameTimer() {
-		if (gameTimerInterval) clearInterval(gameTimerInterval); // Clear existing if any
-		gameTimerInterval = setInterval(() => {
-			if ($arenaStore.gameTime > 0 && $arenaStore.gameStatus === GameStatus.SOLVING) {
-				arenaStore.tickTime();
-			} else if ($arenaStore.gameTime <= 0) {
-				// Timer stops itself when time reaches 0, but clear interval ref
-				if (gameTimerInterval) clearInterval(gameTimerInterval);
-				gameTimerInterval = null;
-				// Game over logic is handled by the reactive block checking gameTime
-			}
-		}, 1000);
+			enemyDefeatedTimeout = null;
+			// Animation flag can reset automatically based on game status change
+			// or be explicitly reset if needed when ResultsScreen shows.
+		}, 1500); // Increased from 1000ms to 1500ms to give bonus animation more time
 	}
 
 	// --- Lifecycle ---
@@ -646,14 +662,19 @@
 	});
 
 	// --- Derived State ---
-	$: formattedTime = `Time: ${Math.floor($arenaStore.gameTime / 60)}:${($arenaStore.gameTime % 60)
-		.toString()
-		.padStart(2, '0')}`;
-	$: timeTakenSeconds =
-		$arenaStore.gameStatus === GameStatus.GAME_OVER
-			? $arenaStore.startTime - $arenaStore.gameTime
+	$: formattedTime = `${Math.ceil($arenaStore.attackTimeRemaining)}s`;
+
+	// Calculate and format level duration
+	$: levelDurationMs =
+		$arenaStore.levelStartTime && $arenaStore.levelEndTime
+			? $arenaStore.levelEndTime - $arenaStore.levelStartTime
 			: 0;
-	$: formattedTimeTaken = `${Math.floor(timeTakenSeconds / 60)}:${(timeTakenSeconds % 60).toString().padStart(2, '0')}`;
+	$: formattedLevelDuration = (() => {
+		const totalSeconds = Math.round(levelDurationMs / 1000);
+		const minutes = Math.floor(totalSeconds / 60);
+		const seconds = totalSeconds % 60;
+		return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+	})();
 
 	// Derive crafter level description
 	$: crafterLevelDescription =
@@ -692,6 +713,11 @@
 				{crafterLevelDescription}
 				showCrafterFeedback={$arenaStore.showCrafterFeedback}
 				crafterFeedbackDetails={$arenaStore.crafterFeedbackDetails}
+				{playerHit}
+				{damageTaken}
+				{isEnemyTelegraphing}
+				shieldTimeRemaining={$arenaStore.shieldDurationRemaining}
+				{shieldBlockedHit}
 				on:selectSpell={handleSelectSpellEvent}
 				on:handleInput={handleInputEvent}
 				on:clearInput={handleClearInputEvent}
@@ -701,17 +727,12 @@
 				on:clearCrafted={handleClearCraftedEvent}
 				on:backspaceCrafted={handleBackspaceCraftedEvent}
 				on:submitEquation={handleSubmitEquationEvent}
-				{playerHit}
-				{damageTaken}
-				{isEnemyTelegraphing}
-				shieldTimeRemaining={$arenaStore.shieldDurationRemaining}
-				{shieldBlockedHit}
 			/>
 		{:else}
 			<ResultsScreen
 				playerHealth={$arenaStore.playerHealth}
 				equationsSolvedCorrectly={$arenaStore.equationsSolvedCorrectly}
-				{formattedTimeTaken}
+				{formattedLevelDuration}
 				currentLevelBonuses={$arenaStore.currentLevelBonuses}
 				handleExit={handleExitGameEvent}
 				handleNextLevel={handleNextLevelEvent}

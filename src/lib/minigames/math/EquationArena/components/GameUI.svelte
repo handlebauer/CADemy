@@ -36,7 +36,8 @@
 	export let currentEnemyConfig: EnemyConfig | null = null;
 	export let isShieldActive: boolean;
 	export let formattedTime: string;
-	export let gameTime: number;
+	export let attackTimeRemaining: number; // Changed from gameTime
+	export let maxAttackTime: number; // Add maxAttackTime for progress indicator
 	export let enemyHit: boolean;
 	export let enemyDefeatedAnimating: boolean;
 	export let displayedDamage: number | null;
@@ -67,6 +68,7 @@
 	export let isEnemyTelegraphing: boolean = false;
 	export let shieldTimeRemaining: number | null = null;
 	export let shieldBlockedHit: boolean = false;
+	export let isFeedbackActive: boolean = false;
 
 	// --- Event Handlers ---
 	// Bubble up the selectSpell event from the child component
@@ -140,7 +142,8 @@
 	<TopBar
 		{playerHealth}
 		{isShieldActive}
-		{gameTime}
+		{attackTimeRemaining}
+		{maxAttackTime}
 		{formattedTime}
 		{playerHit}
 		{damageTaken}
@@ -172,15 +175,15 @@
 	<div
 		id="equation-display-wrapper"
 		class="equation-display-wrapper"
-		class:status-solving={gameStatus === GameStatus.SOLVING}
-		class:status-result={gameStatus === GameStatus.RESULT}
-		class:status-pregame={gameStatus === GameStatus.PRE_GAME}
+		class:shake={false}
+		class:shake-shield={false}
 	>
 		<div
 			class="equation-display"
 			class:correct={lastAnswerCorrect === true && gameStatus === GameStatus.RESULT}
-			class:incorrect={lastAnswerCorrect === false && gameStatus === GameStatus.RESULT}
-			class:eval-error={!!evaluationError && gameStatus === GameStatus.RESULT}
+			class:incorrect={(lastAnswerCorrect === false && gameStatus === GameStatus.RESULT) ||
+				isFeedbackActive}
+			class:eval-error={(!!evaluationError && gameStatus === GameStatus.RESULT) || isFeedbackActive}
 		>
 			<EquationDisplay
 				{gameMode}
@@ -193,6 +196,7 @@
 				{crafterSolvingInputSegments}
 				{crafterResultSegments}
 				{evaluationError}
+				{isFeedbackActive}
 			/>
 		</div>
 
