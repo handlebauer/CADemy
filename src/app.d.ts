@@ -1,10 +1,16 @@
+// See https://kit.svelte.dev/docs/types#app
 // for information about these interfaces
 declare global {
 	namespace App {
-		// Simplified for MVP - no backend/auth needed
 		interface Locals {
-			user: null;
-			session: null;
+			user: {
+				id: string;
+				name?: string;
+				email?: string;
+				image?: string;
+				emailVerified?: Date;
+			} | null;
+			session: Record<string, unknown> | null;
 		}
 	}
 }

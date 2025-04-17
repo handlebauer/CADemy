@@ -16,11 +16,11 @@ if (!env.BETTER_AUTH_URL)
 
 // Main configuration based on docs structure
 export const auth = betterAuth({
-	// Database adapter is likely still needed for user/session storage with database strategy
-	adapter: drizzleAdapter(db, { schema, provider: 'pg' }),
+	// Use the 'database' key as shown in the PostgreSQL docs example
+	database: drizzleAdapter(db, { schema, provider: 'pg' }),
 	secret: env.BETTER_AUTH_SECRET,
 	trustHost: true, // Review for production
-	// appUrl: env.BETTER_AUTH_URL, // Consider using instead of trustHost
+	appUrl: env.BETTER_AUTH_URL || 'http://localhost:5173', // Required for proper URL generation
 
 	// Configure email/password directly as per basic usage docs
 	emailAndPassword: {
