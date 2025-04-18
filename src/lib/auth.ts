@@ -1,8 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { signOut } from 'better-auth/api';
-// CredentialsProvider is not used directly in config based on docs basic usage example
-// import CredentialsProvider from 'better-auth/providers/credentials';
 
 import { db } from '$lib/server/db';
 import * as schema from '$lib/server/db/schema';
@@ -18,7 +16,16 @@ if (!env.BETTER_AUTH_URL)
 // Main configuration based on docs structure
 export const auth = betterAuth({
 	// Use the 'database' key as shown in the PostgreSQL docs example
-	database: drizzleAdapter(db, { schema, provider: 'pg' }),
+	database: drizzleAdapter(db, {
+		schema: {
+			...schema,
+			user: schema.users,
+			account: schema.accounts,
+			session: schema.sessions,
+			verificationToken: schema.verification
+		},
+		provider: 'pg'
+	}),
 	secret: env.BETTER_AUTH_SECRET,
 	trustHost: true, // Review for production
 	appUrl: env.BETTER_AUTH_URL || 'http://localhost:5173', // Required for proper URL generation
@@ -43,36 +50,43 @@ export const auth = betterAuth({
 
 			console.log('Verifying user:', email); // Dev logging
 
+			// 1. Find user by email
 			const user = await db.query.users.findFirst({
 				where: (users, { eq }) => eq(users.email, email)
 			});
 
 			if (!user) {
 				console.log('User not found:', email);
-				// Throw specific error or return null based on better-auth expectations
 				throw new Error('Incorrect email or password');
 			}
 
-			if (!user.hashedPassword) {
-				console.error('User found but has no hashed password:', email);
-				// This indicates a data integrity issue
+			// 2. Find the associated account for this user
+			const account = await db.query.accounts.findFirst({
+				where: (accounts, { eq }) => eq(accounts.userId, user.id)
+			});
+
+			if (!account || !account.password) {
+				// Should not happen if created correctly, but handle defensively
+				console.error('Credential account or password hash not found for user:', email);
 				throw new Error('Authentication configuration error');
 			}
 
-			// Verify password using argon2
-			const isValidPassword = await argon2.verify(user.hashedPassword, password);
+			// 3. Verify password using argon2 against accounts.password
+			const isValidPassword = await argon2.verify(account.password, password);
 
 			if (isValidPassword) {
 				console.log('Password verified for user:', email);
-				// Return the user object expected by better-auth
-				// Ensure it includes required fields (id, email at minimum)
+				// Return the user object (still based on the users table data)
 				return {
 					id: user.id,
-					name: user.name ?? user.username, // Include name/username if available
+					name: user.name, // name is notNull in schema now
+					username: user.username, // Include custom field if needed
 					email: user.email,
 					image: user.image,
-					emailVerified: user.emailVerified // Pass emailVerified status if used
-				} as Omit<DbUser, 'hashedPassword'>; // Return DbUser minus the hash
+					emailVerified: user.emailVerified,
+					createdAt: user.createdAt,
+					updatedAt: user.updatedAt
+				} as Omit<DbUser, 'hashedPassword'>; // DbUser refers to the schema type
 			} else {
 				console.log('Incorrect password for user:', email);
 				// Throw specific error or return null based on better-auth expectations
@@ -82,9 +96,6 @@ export const auth = betterAuth({
 		// Optional: autoSignIn defaults to true, set false if needed
 		// autoSignIn: false
 	},
-
-	// Social providers would go here if needed
-	// socialProviders: { ... },
 
 	session: {
 		strategy: 'database', // Use the database via the adapter
@@ -165,9 +176,76 @@ export const { handler: handle } = auth;
 // Re-export the API functions for use in routes
 export { signOut };
 
-// --- ADD New Helper Function for Sign In ---
+// --- ADD Helper Functions for Sign In/Sign Up ---
 import type { RequestEvent } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
+
+// Helper function for user sign-up via Better Auth
+export async function signUpEmailHelper(
+	event: RequestEvent,
+	userData: { email: string; password: string; name?: string; username?: string; image?: string }
+): Promise<{ success: boolean; error?: string }> {
+	try {
+		// Use Better Auth's signUp.email API
+		const response = await auth.api.signUpEmail({
+			body: {
+				email: userData.email,
+				password: userData.password,
+				name: userData.name || userData.username || userData.email.split('@')[0]
+				// image is not supported in the API type definition
+			},
+			headers: event.request.headers,
+			asResponse: true
+		});
+
+		if (!response.ok) {
+			// Attempt to parse error from better-auth response body if possible
+			let errorMessage = 'Failed to create account';
+			try {
+				const errorBody = await response.json();
+				if (errorBody.message) {
+					errorMessage = errorBody.message;
+				}
+			} catch {
+				// Ignore if body isn't JSON or doesn't have message
+			}
+			console.error('Better Auth Sign Up Error:', response.status, errorMessage);
+			return { success: false, error: errorMessage };
+		}
+
+		// Handle cookies just as in signIn
+		const setCookieHeader = response.headers.get('set-cookie');
+		if (setCookieHeader) {
+			const cookieStrings = setCookieHeader.split(', ').filter((c) => c.trim() !== '');
+			for (const cookieString of cookieStrings) {
+				const parts = cookieString.split(';')[0].split('=');
+				if (parts.length === 2) {
+					const name = parts[0];
+					const value = parts[1];
+					event.cookies.set(name, value, {
+						path: '/',
+						httpOnly: true,
+						secure: true,
+						sameSite: 'lax'
+					});
+				}
+			}
+		} else {
+			console.warn('No set-cookie header received from better-auth signUpEmail');
+		}
+
+		return { success: true };
+	} catch (error) {
+		console.error('Error calling auth.api.signUpEmail:', error);
+		let message = 'An unexpected error occurred during signup.';
+		if (error instanceof APIError) {
+			message = error.message;
+		} else if (error instanceof Error) {
+			message = error.message;
+		}
+		return { success: false, error: message };
+	}
+}
 
 export async function signInEmailHelper(
 	event: RequestEvent,
@@ -188,8 +266,7 @@ export async function signInEmailHelper(
 				if (errorBody.message) {
 					errorMessage = errorBody.message;
 				}
-				// eslint-disable-next-line @typescript-eslint/no-unused-vars
-			} catch (_e) {
+			} catch {
 				// Ignore if body isn't JSON or doesn't have message
 			}
 			console.error('Better Auth Sign In Error:', response.status, errorMessage);
@@ -239,43 +316,46 @@ export async function signInEmailHelper(
 // --- END New Helper Function ---
 
 // Utility function to hash passwords using argon2
-export async function hashPassword(password: string): Promise<string> {
-	return await argon2.hash(password, {
-		type: argon2.argon2id, // Most secure variant recommended for general use
-		memoryCost: 19456, // Default is 65536 (64 MiB), lower for server performance
-		timeCost: 2, // Number of iterations
-		parallelism: 1 // Degree of parallelism
-	});
-}
+// export async function hashPassword(password: string): Promise<string> {
+// 	return await argon2.hash(password, {
+// 		type: argon2.argon2id, // Most secure variant recommended for general use
+// 		memoryCost: 19456, // Default is 65536 (64 MiB), lower for server performance
+// 		timeCost: 2, // Number of iterations
+// 		parallelism: 1 // Degree of parallelism
+// 	});
+// }
 
-// Helper function to create new user with hashed password
-export async function createUser(
-	email: string,
-	password: string,
-	username?: string,
-	name?: string
-) {
-	const hashedPassword = await hashPassword(password);
+// COMMENT OUT createUser helper - better-auth should handle user/account creation
+// export async function createUser(
+// 	email: string,
+// 	password: string,
+// 	username?: string,
+// 	name?: string
+// ) {
+// 	const hashedPassword = await hashPassword(password);
 
-	// Check if user already exists
-	const existingUser = await db.query.users.findFirst({
-		where: (users, { eq }) => eq(users.email, email)
-	});
+// 	// Check if user already exists
+// 	const existingUser = await db.query.users.findFirst({
+// 		where: (users, { eq }) => eq(users.email, email)
+// 	});
 
-	if (existingUser) {
-		throw new Error('User with this email already exists');
-	}
+// 	if (existingUser) {
+// 		throw new Error('User with this email already exists');
+// 	}
 
-	// Insert the new user
-	const [newUser] = await db
-		.insert(schema.users)
-		.values({
-			email,
-			hashedPassword,
-			username,
-			name: name || username
-		})
-		.returning();
+// 	// Insert the new user
+// 	const [newUser] = await db
+// 		.insert(schema.users)
+// 		.values({
+// 			email,
+// 			// hashedPassword, // No longer storing here
+// 			username,
+// 			name: name || username || email.split('@')[0], // Ensure name is non-null
+// 			createdAt: new Date(),
+// 			updatedAt: new Date(),
+// 			emailVerified: false
+// 		})
+// 		.returning();
 
-	return newUser;
-}
+// 	return newUser;
+// }

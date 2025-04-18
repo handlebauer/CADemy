@@ -1,6 +1,6 @@
 import type { Actions } from '@sveltejs/kit';
 import { fail, redirect } from '@sveltejs/kit';
-import { signInEmailHelper, createUser } from '$lib/auth';
+import { signInEmailHelper, signUpEmailHelper } from '$lib/auth';
 
 export const actions: Actions = {
 	// Login action
@@ -53,44 +53,32 @@ export const actions: Actions = {
 		}
 
 		try {
-			// Create the user first (this might throw if email exists)
-			await createUser(email, password, username, name);
-
-			// Automatically sign in the user after registration using the helper
-			const signInResult = await signInEmailHelper(event, {
+			// Use the Better Auth signup API directly
+			const signUpResult = await signUpEmailHelper(event, {
 				email,
-				password
+				password,
+				username,
+				name
 			});
 
-			if (!signInResult.success) {
-				return fail(500, {
-					success: false,
-					email,
-					username,
-					name,
-					error:
-						signInResult.error ?? 'Account created, but auto-login failed. Please login manually.'
-				});
-			}
-
-			return { success: true };
-		} catch (err: unknown) {
-			console.error('Signup - createUser error:', err);
-
-			let errorMessage = 'Failed to create account';
-			if (
-				err instanceof Error &&
-				err.message &&
-				err.message.includes('User with this email already exists')
-			) {
-				errorMessage = 'This email is already registered';
+			if (!signUpResult.success) {
 				return fail(400, {
 					success: false,
 					email,
 					username,
 					name,
-					error: errorMessage
+					error: signUpResult.error ?? 'Failed to create account'
 				});
+			}
+
+			// User is automatically logged in after sign up
+			return { success: true };
+		} catch (err: unknown) {
+			console.error('Signup error:', err);
+
+			let errorMessage = 'Failed to create account';
+			if (err instanceof Error && err.message) {
+				errorMessage = err.message;
 			}
 
 			return fail(500, {

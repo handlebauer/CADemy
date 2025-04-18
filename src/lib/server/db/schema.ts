@@ -1,64 +1,80 @@
-import { timestamp, pgTable, text, primaryKey, integer } from 'drizzle-orm/pg-core';
+import { timestamp, pgTable, text, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
-	// Table name often 'user' or 'users'
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
-	name: text('name'), // Keep name field, can be populated from username or profile
-	username: text('username').unique(), // Added username field
-	email: text('email').notNull().unique(), // Added email field
-	emailVerified: timestamp('emailVerified', { mode: 'date', withTimezone: true }), // Standard field
-	image: text('image'), // Standard field
-	hashedPassword: text('hashed_password') // Added field to store hashed password for credentials auth
+	name: text('name').notNull(),
+	username: text('username').unique(),
+	email: text('email').notNull().unique(),
+	emailVerified: boolean('email_verified').notNull().default(false),
+	image: text('image'),
+	createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull(),
+	updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).notNull()
 });
 
 export const accounts = pgTable(
 	'account',
 	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
 		userId: text('userId')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
-		// Using plain text for now, refine if AdapterAccount type is found or needed
-		type: text('type').notNull(),
-		provider: text('provider').notNull(),
-		providerAccountId: text('providerAccountId').notNull(),
-		refresh_token: text('refresh_token'),
-		access_token: text('access_token'),
-		expires_at: integer('expires_at'),
-		token_type: text('token_type'),
+		accountId: text('account_id').notNull(),
+		providerId: text('provider_id').notNull(),
+		accessToken: text('access_token'),
+		refreshToken: text('refresh_token'),
+		idToken: text('id_token'),
+		accessTokenExpiresAt: timestamp('access_token_expires_at', {
+			mode: 'date',
+			withTimezone: true
+		}),
+		refreshTokenExpiresAt: timestamp('refresh_token_expires_at', {
+			mode: 'date',
+			withTimezone: true
+		}),
 		scope: text('scope'),
-		id_token: text('id_token'),
-		session_state: text('session_state')
+		password: text('password'),
+		createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull(),
+		updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).notNull()
 	},
 	(account) => ({
-		compoundKey: primaryKey({
-			columns: [account.provider, account.providerAccountId]
-		})
+		providerProviderAccountIdIndex: uniqueIndex('account_provider_providerId_idx').on(
+			account.providerId
+		)
 	})
 );
 
 export const sessions = pgTable('session', {
-	// Table name often 'session' or 'sessions'
-	sessionToken: text('sessionToken').primaryKey(),
-	userId: text('userId')
+	id: text('id') // Use 'id' as PK instead of sessionToken
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	userId: text('user_id')
 		.notNull()
 		.references(() => users.id, { onDelete: 'cascade' }),
-	expires: timestamp('expires', { mode: 'date', withTimezone: true }).notNull() // Use 'expires' as commonly expected
+	expiresAt: timestamp('expires_at', { mode: 'date', withTimezone: true }).notNull(),
+	token: text('token').notNull().unique(),
+	createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull(),
+	updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).notNull(),
+	ipAddress: text('ip_address'),
+	userAgent: text('user_agent')
 });
 
-export const verificationTokens = pgTable(
-	'verificationToken',
-	{
-		identifier: text('identifier').notNull(), // Typically email
-		token: text('token').notNull().unique(), // Token should be unique
-		expires: timestamp('expires', { mode: 'date', withTimezone: true }).notNull()
-	},
-	(vt) => ({
-		// Primary key often on identifier and token
-		compoundKey: primaryKey({ columns: [vt.identifier, vt.token] })
-	})
-);
+export const verification = pgTable('verification', {
+	id: text('id') // Use 'id' as PK
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	identifier: text('identifier').notNull(), // Typically email
+	value: text('value').notNull(),
+	expiresAt: timestamp('expires_at', { mode: 'date', withTimezone: true }).notNull(),
+	createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull(),
+	updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).notNull()
+});
+
+// Export the 'users' table also as 'user' for compatibility with adapters expecting that name
+export { users as user };
 
 // Update exported types to reflect the new schema structure
 export type User = typeof users.$inferSelect;
@@ -71,5 +87,5 @@ export type NewSession = typeof sessions.$inferInsert;
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
 
-export type VerificationToken = typeof verificationTokens.$inferSelect;
-export type NewVerificationToken = typeof verificationTokens.$inferInsert;
+export type Verification = typeof verification.$inferSelect;
+export type NewVerification = typeof verification.$inferInsert;
