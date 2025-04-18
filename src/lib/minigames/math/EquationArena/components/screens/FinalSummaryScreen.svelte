@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { BonusConfig } from '../../types';
+	import type { GameMode } from '../../types';
 
 	export let totalGameScore: number;
 	export let completedLevelsData: Array<{
@@ -7,6 +8,12 @@
 		score: number;
 		bonuses: BonusConfig[];
 	}>;
+
+	// Add new props for game mode and challenge mode handling
+	export let gameMode: GameMode | null = null;
+	export let crafterSubMode: 'normal' | 'challenge' | null = null;
+	export let crafterNormalCompleted: boolean = false;
+	export let handleStartChallengeMode: () => void;
 
 	// Handlers passed from parent
 	export let handlePlayAgain: () => void;
@@ -29,6 +36,16 @@
 			displayedBonuses: Object.values(aggregatedBonuses)
 		};
 	});
+
+	console.log('FinalSummaryScreen props:', {
+		gameMode,
+		crafterSubMode,
+		crafterNormalCompleted
+	});
+
+	// Compute whether to show challenge mode button
+	$: showChallengeButton =
+		gameMode === 'crafter' && crafterSubMode === 'normal' && crafterNormalCompleted;
 </script>
 
 <div class="final-summary-screen">
@@ -61,6 +78,11 @@
 
 	<div class="summary-actions">
 		<button class="exit-button" on:click={handleExit}>EXIT</button>
+		{#if showChallengeButton}
+			<button class="challenge-button" on:click={handleStartChallengeMode}>
+				Try Challenge Mode
+			</button>
+		{/if}
 		<button class="play-again-button" on:click={handlePlayAgain}> Play Again? </button>
 	</div>
 </div>
@@ -180,5 +202,15 @@
 	.exit-button:hover {
 		background-color: #eee;
 		border-color: #bbb;
+	}
+
+	.challenge-button {
+		background-color: #e74c3c;
+		border-color: #c0392b;
+		color: #fff;
+	}
+	.challenge-button:hover {
+		background-color: #c0392b;
+		border-color: #a93226;
 	}
 </style>

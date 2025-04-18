@@ -99,7 +99,6 @@
 		}
 
 		const timer = setTimeout(() => {
-			console.log('Initializing tutorial tour.');
 			initTour();
 		}, 150);
 

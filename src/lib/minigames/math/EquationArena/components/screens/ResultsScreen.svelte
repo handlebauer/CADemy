@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { BonusConfig } from '../../types';
+	import type { GameMode } from '../../types';
 
 	export let playerHealth: number;
 	export let equationsSolvedCorrectly: number;
@@ -11,6 +12,10 @@
 	export let handleExit: () => void;
 	export let handleNextLevel: () => void;
 	export let handleTryAgain: () => void;
+
+	// Add gameMode and crafterSubMode props
+	export let gameMode: GameMode | null = null;
+	export let crafterSubMode: 'normal' | 'challenge' | null = null;
 
 	// Reactive block to aggregate bonuses
 	$: aggregatedBonuses = currentLevelBonuses.reduce(
@@ -58,7 +63,13 @@
 		<div class="metric-divider">•</div>
 		<div class="metric">
 			<div class="metric-header">
-				<span class="metric-label">SCORE</span>
+				<span class="metric-label">
+					{#if playerHealth <= 0 && gameMode === 'crafter' && crafterSubMode === 'challenge'}
+						TOTAL SCORE
+					{:else}
+						SCORE
+					{/if}
+				</span>
 			</div>
 			<div class="metric-value">{levelScore}</div>
 		</div>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { EnemyConfig, BonusConfig } from '../../types';
-	import { GameStatus } from '../../types';
+	import { GameStatus, type GameMode } from '../../types';
 
 	export let currentEnemyConfig: EnemyConfig | null = null;
 	export let enemyHealth: number;
@@ -11,6 +11,9 @@
 	export let activeBonuses: BonusConfig[] = [];
 	export let gameStatus: GameStatus;
 	export let isEnemyTelegraphing: boolean = false;
+	export let gameMode: GameMode | null = null;
+	export let crafterSubMode: 'normal' | 'challenge' | null = null;
+	export let scaledHealthBonus: number | null = null;
 </script>
 
 <!-- Enemy Area Markup -->
@@ -34,7 +37,12 @@
 		<div class="enemy-label">{currentEnemyConfig?.name || 'Enemy'}</div>
 		<progress class="enemy-health-bar" max={currentEnemyConfig?.health || 100} value={enemyHealth}
 		></progress>
-		<div class="enemy-health-text">{enemyHealth}/{currentEnemyConfig?.health || 100}</div>
+		<div class="enemy-health-text">
+			{enemyHealth}/{currentEnemyConfig?.health || 100}
+			{#if gameMode === 'crafter' && crafterSubMode === 'challenge' && scaledHealthBonus && scaledHealthBonus > 0}
+				<span class="scaled-bonus-text">(+{scaledHealthBonus})</span>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Damage & Bonus Display Area (outside the box) -->
@@ -112,6 +120,8 @@
 	}
 
 	.enemy-health-text {
+		display: flex;
+		align-items: center;
 		font-size: 0.9rem;
 		color: #555;
 	}
@@ -293,5 +303,14 @@
 			opacity: 0;
 			transform: translateY(-20px) scale(0.9);
 		}
+	}
+
+	/* ---> ADDITION: Style for scaled health bonus text <--- */
+	.scaled-bonus-text {
+		font-size: 0.75em; /* Slightly smaller */
+		font-weight: normal;
+		color: #dc3545; /* Red color to indicate increase */
+		opacity: 0.8;
+		margin-left: 0.3em;
 	}
 </style>

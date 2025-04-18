@@ -35,6 +35,8 @@ export interface ArenaState {
 	currentLevelNumber: number;
 	selectedGrade: GradeLevel | null;
 	gameMode: GameMode | null;
+	crafterSubMode: 'normal' | 'challenge' | null;
+	crafterNormalCompleted: boolean;
 	currentEnemyId: string | null;
 	currentEnemyConfig: EnemyConfig | null;
 	activeBonuses: BonusConfig[];
@@ -67,6 +69,7 @@ export interface ArenaState {
 	totalGameScore: number;
 	levelBonusesUsedThisLevel: Set<string>;
 	completedLevelsData: Array<{ levelNumber: number; score: number; bonuses: BonusConfig[] }>;
+	challengeEnemyScaling: Map<string, { healthScaleLevel: number; intervalScaleLevel: number }>;
 }
 
 export const initialArenaState: ArenaState = {
@@ -90,6 +93,8 @@ export const initialArenaState: ArenaState = {
 	currentLevelNumber: 1,
 	selectedGrade: null,
 	gameMode: null,
+	crafterSubMode: null,
+	crafterNormalCompleted: false,
 	currentEnemyId: null,
 	currentEnemyConfig: null,
 	activeBonuses: [],
@@ -116,7 +121,8 @@ export const initialArenaState: ArenaState = {
 	currentLevelScore: 0,
 	totalGameScore: 0,
 	levelBonusesUsedThisLevel: new Set<string>(),
-	completedLevelsData: []
+	completedLevelsData: [],
+	challengeEnemyScaling: new Map()
 };
 
 // --- Store Creation Logic ---
@@ -137,6 +143,13 @@ function createArenaStore() {
 	);
 	const tutorialActions = createTutorialActions(update);
 
+	// Create a new action to set the initial completion status from localStorage
+	const setInitialCompletionStatus = (status: boolean) =>
+		update((state) => ({
+			...state,
+			crafterNormalCompleted: status
+		}));
+
 	// Assemble the final store object
 	return {
 		subscribe,
@@ -146,7 +159,9 @@ function createArenaStore() {
 		...crafterActions,
 		...entityActions,
 		...gameplayActions,
-		...tutorialActions
+		...tutorialActions,
+		// Add the new action
+		setInitialCompletionStatus
 	};
 }
 
