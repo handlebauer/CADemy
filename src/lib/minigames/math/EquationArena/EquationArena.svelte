@@ -12,12 +12,20 @@
 		CRAFTER_FEEDBACK_DISPLAY_DURATION,
 		WRONG_ANSWER_HEALTH_PENALTY,
 		WRONG_ANSWER_PENALTY_TOLERANCE,
-		equationArenaTweakpaneBindings
+		equationArenaTweakpaneBindings,
+		enemies
 	} from './config/index';
 	import { getCrafterLevelConfig } from './config/crafterLevels';
 
 	import { arenaStore, type ArenaState } from './store';
-	import { GameStatus, type SpellType, type GradeLevel, type BonusConfig } from './types';
+	import {
+		GameStatus,
+		type SpellType,
+		type GradeLevel,
+		type BonusConfig,
+		type GameMode,
+		type EnemyConfig
+	} from './types';
 
 	// Import the input validation functions
 	import {
@@ -173,7 +181,6 @@
 		minigameStore.closeActiveMinigame();
 	}
 	function handleNextLevelEvent() {
-		console.log('got here');
 		arenaStore.advanceLevelAndStart();
 		waitingForPlayerStart = true; // Reset waiting state when advancing to next level
 	}
@@ -207,7 +214,13 @@
 		// Start game on Enter press ONLY during PRE_GAME (after grade selection)
 		if ($arenaStore.selectedGrade && $arenaStore.gameStatus === GameStatus.PRE_GAME) {
 			if (event.key === 'Enter') {
-				handleStartGame();
+				// Create the event detail object that handleStartGame expects
+				const gameMode = $arenaStore.gameMode || 'solver';
+				const subMode = gameMode === 'crafter' ? 'normal' : undefined;
+				handleStartGame({ detail: { mode: gameMode, subMode } } as CustomEvent<{
+					mode: GameMode;
+					subMode?: 'normal' | 'challenge';
+				}>);
 				return; // Prevent further processing
 			}
 			// Do not process other keys on PRE_GAME screen
@@ -327,10 +340,17 @@
 	}
 
 	// Function to handle starting the game (from StartScreen)
-	function handleStartGame() {
-		// startGame action now uses selectedGrade/gameMode from the store
-		arenaStore.startGame();
+	function handleStartGame(
+		event: CustomEvent<{ mode: GameMode; subMode?: 'normal' | 'challenge' }>
+	) {
+		// Start game with the specified mode and subMode
+		arenaStore.startGame(event.detail.mode, event.detail.subMode);
 		waitingForPlayerStart = true; // Reset waiting state when starting a new game
+	}
+
+	// Function to handle starting challenge mode from final summary
+	function handleStartChallengeFromSummary() {
+		arenaStore.startGame('crafter', 'challenge');
 	}
 
 	// --- Timer Management ---
@@ -426,7 +446,6 @@
 			$arenaStore.currentEnemyConfig &&
 			!waitingForPlayerStart // Only start attack timer if player has confirmed
 		) {
-			console.log('Reactive: Game Status == SOLVING & !gameStarted -> Starting Timers');
 			// Start the attack timer immediately when the level begins
 			startAttackTimer($arenaStore.currentEnemyConfig);
 			gameStarted = true; // Mark timers as started for this game instance
@@ -436,7 +455,6 @@
 				$arenaStore.gameStatus === GameStatus.PRE_GAME) &&
 			gameStarted // Only reset if it was previously true
 		) {
-			console.log('Reactive: Game Ended/Reset -> Stopping Timers & Resetting gameStarted');
 			stopGameTimers(); // Stop timers when game ends or resets
 			gameStarted = false; // Reset for next game
 			waitingForPlayerStart = true; // Reset waiting state for next level
@@ -451,19 +469,14 @@
 
 			if ($arenaStore.enemyJustDefeated) {
 				// Enemy defeated, trigger victory sequence
-				console.log(
-					'Reactive: Game Status == RESULT & enemyJustDefeated -> Calling Victory Sequence'
-				);
 				handleEnemyVictorySequence();
 			} else {
 				// Normal RESULT state, handle next round
-				console.log('Reactive: Game Status == RESULT -> Calling Next Round Sequence');
 				handleNextRoundSequence(); // Checks conditions internally
 			}
 		} else if ($arenaStore.gameStatus !== GameStatus.GAME_OVER && enemyDefeatedAnimating) {
 			// Reset animation flag if game status changes away from GAME_OVER (e.g., reset)
 			// This might need refinement depending on when ResultsScreen takes over.
-			console.log('Reactive: Resetting enemyDefeatedAnimating flag');
 			enemyDefeatedAnimating = false;
 		}
 	}
@@ -489,8 +502,6 @@
 		// Prevent re-triggering if timeout already active
 		if (damageDisplayTimeout) return;
 
-		console.log('Triggering Damage Display Sequence');
-
 		let calculatedDamage = globalConfig.FIRE_DAMAGE;
 		// Use store's activeBonuses directly
 		$arenaStore.activeBonuses.forEach((bonus) => {
@@ -510,7 +521,6 @@
 		}, 200);
 
 		damageDisplayTimeout = setTimeout(() => {
-			console.log('Damage Display Timeout -> Clearing Display');
 			displayedDamage = null;
 			activeBonusesForDisplay = [];
 			damageDisplayTimeout = null;
@@ -528,7 +538,6 @@
 			: globalConfig.INCORRECT_RESULT_DISPLAY_DELAY;
 
 		nextRoundTimeout = setTimeout(() => {
-			console.log('Next Round Timeout -> Preparing Next Round');
 			// Check status again before proceeding
 			if ($arenaStore.gameStatus !== GameStatus.GAME_OVER) {
 				// Check if timer was frozen *before* preparing the next round
@@ -567,7 +576,6 @@
 
 		// Set a timeout to allow animation to play before finalizing game over
 		enemyDefeatedTimeout = setTimeout(() => {
-			console.log('Enemy Victory Timeout -> Finalizing Victory');
 			// Double check status before setting game over (might have reset)
 			if ($arenaStore.gameStatus !== GameStatus.GAME_OVER) {
 				arenaStore.finalizeVictory();
@@ -595,6 +603,18 @@
 		arenaStore.reset();
 		// Default spell selection can happen anytime
 		arenaStore.selectSpell('FIRE');
+
+		// Read localStorage for crafter normal completion status
+		try {
+			if (typeof localStorage !== 'undefined') {
+				const storedStatus = localStorage.getItem('equationArenaCrafterNormalCompleted');
+				if (storedStatus === 'true') {
+					arenaStore.setInitialCompletionStatus(true);
+				}
+			}
+		} catch (e) {
+			console.error('Failed to access localStorage on mount:', e);
+		}
 
 		window.addEventListener('keydown', handleKeyDown);
 
@@ -671,11 +691,88 @@
 		return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 	})();
 
-	// Derive crafter level description
-	$: crafterLevelDescription =
-		$arenaStore.gameMode === 'crafter'
-			? getCrafterLevelConfig($arenaStore.currentLevelNumber)?.description
-			: null;
+	// Derive effective rule level based on mode, subMode, and current enemy
+	$: effectiveRuleLevel = (() => {
+		if ($arenaStore.gameMode === 'crafter' && $arenaStore.crafterSubMode === 'challenge') {
+			return $arenaStore.currentEnemyConfig?.level || 1; // Challenge uses enemy's original level
+		} else {
+			return $arenaStore.currentLevelNumber; // Normal/Solver use current level
+		}
+	})();
+
+	// Derive crafter level description using the correct lookup level
+	$: crafterLevelDescription = (() => {
+		if ($arenaStore.gameMode !== 'crafter') return null;
+
+		let configLookupLevel: number;
+		if ($arenaStore.crafterSubMode === 'challenge') {
+			// Challenge mode: Use the CURRENT enemy's original level for the description
+			configLookupLevel = $arenaStore.currentEnemyConfig?.level || 1; // Fallback to 1
+		} else {
+			// Normal mode: Use the actual current level number
+			configLookupLevel = $arenaStore.currentLevelNumber;
+		}
+
+		// Ensure configLookupLevel is valid (at least 1)
+		configLookupLevel = Math.max(1, configLookupLevel);
+
+		return getCrafterLevelConfig(configLookupLevel)?.description || 'Challenge Level'; // Provide fallback
+	})();
+
+	// ---> ADDITION: Calculate score for ResultsScreen <---
+	// Determine score to show on ResultsScreen
+	$: scoreForResults =
+		$arenaStore.playerHealth <= 0 &&
+		$arenaStore.gameMode === 'crafter' &&
+		$arenaStore.crafterSubMode === 'challenge'
+			? $arenaStore.totalGameScore // Show total score on Challenge defeat
+			: $arenaStore.currentLevelScore; // Show level score otherwise (Normal/Solver win/loss)
+
+	// ---> ADDITION: Calculate scaled health bonus for EnemyDisplay <---
+	$: scaledHealthBonus = (() => {
+		if (
+			$arenaStore.gameMode !== 'crafter' ||
+			$arenaStore.crafterSubMode !== 'challenge' ||
+			!$arenaStore.currentEnemyConfig ||
+			!$arenaStore.currentEnemyId
+		) {
+			return null; // Not applicable
+		}
+
+		// Find the base config for the current enemy
+		const baseEnemyConfig = enemies.find((e: EnemyConfig) => e.id === $arenaStore.currentEnemyId);
+		if (!baseEnemyConfig) {
+			console.warn(`Base config not found for enemy ID: ${$arenaStore.currentEnemyId}`);
+			return null;
+		}
+
+		const healthDifference = $arenaStore.currentEnemyConfig.health - baseEnemyConfig.health;
+		return healthDifference > 0 ? healthDifference : null; // Only return positive difference
+	})();
+
+	// ---> ADDITION: Calculate scaled time bonus for TopBar <---
+	$: scaledTimeBonusSeconds = (() => {
+		if (
+			$arenaStore.gameMode !== 'crafter' ||
+			$arenaStore.crafterSubMode !== 'challenge' ||
+			!$arenaStore.currentEnemyConfig ||
+			!$arenaStore.currentEnemyId
+		) {
+			return null; // Not applicable
+		}
+
+		// Find the base config for the current enemy
+		const baseEnemyConfig = enemies.find((e: EnemyConfig) => e.id === $arenaStore.currentEnemyId);
+		if (!baseEnemyConfig) {
+			// Warning already logged by scaledHealthBonus calc
+			return null;
+		}
+
+		const timeDifference =
+			baseEnemyConfig.solveTimeSec - $arenaStore.currentEnemyConfig.solveTimeSec;
+		// Round to one decimal place for display, return only if positive
+		return timeDifference > 0 ? Math.round(timeDifference * 10) / 10 : null;
+	})();
 </script>
 
 <!-- Main Template -->
@@ -695,7 +792,7 @@
 		{#if !$arenaStore.selectedGrade}
 			<GradeSelectionScreen on:selectGrade={handleGradeSelected} />
 		{:else if $arenaStore.gameStatus === GameStatus.PRE_GAME}
-			<StartScreen on:startGame={handleStartGame} />
+			<StartScreen gameMode={$arenaStore.gameMode || 'solver'} on:startGame={handleStartGame} />
 		{:else if $arenaStore.gameStatus !== GameStatus.GAME_OVER && $arenaStore.gameStatus !== GameStatus.FINAL_SUMMARY}
 			<GameUI
 				{...$arenaStore}
@@ -705,12 +802,17 @@
 				{displayedDamage}
 				activeBonuses={activeBonusesForDisplay}
 				{crafterLevelDescription}
+				{effectiveRuleLevel}
 				showCrafterFeedback={$arenaStore.showCrafterFeedback}
 				crafterFeedbackDetails={$arenaStore.crafterFeedbackDetails}
 				{damageTaken}
 				{isEnemyTelegraphing}
 				isTimerFrozen={$arenaStore.isTimerFrozen}
 				{waitingForPlayerStart}
+				{scaledHealthBonus}
+				gameMode={$arenaStore.gameMode}
+				crafterSubMode={$arenaStore.crafterSubMode}
+				{scaledTimeBonusSeconds}
 				on:selectSpell={handleSelectSpellEvent}
 				on:handleInput={handleInputEvent}
 				on:clearInput={handleClearInputEvent}
@@ -726,6 +828,10 @@
 			<FinalSummaryScreen
 				totalGameScore={$arenaStore.totalGameScore}
 				completedLevelsData={$arenaStore.completedLevelsData}
+				gameMode={$arenaStore.gameMode}
+				crafterSubMode={$arenaStore.crafterSubMode}
+				crafterNormalCompleted={$arenaStore.crafterNormalCompleted}
+				handleStartChallengeMode={handleStartChallengeFromSummary}
 				handlePlayAgain={handleTryAgainEvent}
 				handleExit={handleExitGameEvent}
 			/>
@@ -735,7 +841,9 @@
 				equationsSolvedCorrectly={$arenaStore.equationsSolvedCorrectly}
 				{formattedLevelDuration}
 				currentLevelBonuses={$arenaStore.currentLevelBonuses}
-				levelScore={$arenaStore.currentLevelScore}
+				levelScore={scoreForResults}
+				gameMode={$arenaStore.gameMode}
+				crafterSubMode={$arenaStore.crafterSubMode}
 				handleExit={handleExitGameEvent}
 				handleNextLevel={handleNextLevelEvent}
 				handleTryAgain={handleTryAgainEvent}

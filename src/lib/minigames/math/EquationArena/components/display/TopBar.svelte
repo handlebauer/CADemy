@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { GameMode } from '../../types';
+
 	export let playerHealth: number;
 	export let attackTimeRemaining: number;
 	export let maxAttackTime: number;
@@ -6,6 +8,10 @@
 	export let damageTaken: number | null = null;
 	export let waitingForPlayerStart: boolean = false;
 	export let isTimerFrozen: boolean = false;
+
+	export let gameMode: GameMode | null = null;
+	export let crafterSubMode: 'normal' | 'challenge' | null = null;
+	export let scaledTimeBonusSeconds: number | null = null;
 
 	// Use explicit function to handle player hit effect
 	let playerHitEffect = false;
@@ -58,7 +64,12 @@
 					: (attackTimeRemaining / maxAttackTime) * 100}%;"
 			></div>
 		</div>
-		<span class="value-text timer-text">{formattedTime.replace('Time: ', '')}</span>
+		<span class="value-text timer-text">
+			{formattedTime.replace('Time: ', '')}
+			{#if gameMode === 'crafter' && crafterSubMode === 'challenge' && scaledTimeBonusSeconds && scaledTimeBonusSeconds > 0}
+				<span class="scaled-time-reduction">(-{scaledTimeBonusSeconds}s)</span>
+			{/if}
+		</span>
 	</div>
 </div>
 
@@ -145,6 +156,8 @@
 
 	/* Common styling for value text */
 	.value-text {
+		display: flex;
+		align-items: center;
 		font-size: 1.1rem;
 		font-weight: bold;
 		text-align: left;
@@ -298,5 +311,13 @@
 		100% {
 			transform: translate3d(0, 0, 0);
 		}
+	}
+
+	.scaled-time-reduction {
+		font-size: 0.75em;
+		font-weight: normal;
+		color: #e74c3c;
+		opacity: 0.8;
+		margin-left: 0.3em;
 	}
 </style>

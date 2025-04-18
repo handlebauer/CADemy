@@ -49,6 +49,7 @@
 	export let lastFullEquation: string;
 	export let lastPlayerInput: string;
 	export let gameMode: GameMode | null = null;
+	export let crafterSubMode: 'normal' | 'challenge' | null = null;
 	export let craftedEquationString: string = '';
 	export let isCraftingPhase: boolean = false;
 	export let crafterLevelDescription: string | null = null;
@@ -57,6 +58,7 @@
 	export let allowedCrafterChars: string[] | null = null;
 	export let isCraftedEquationValidForLevel: boolean = true;
 	export let currentLevelNumber: number = 1;
+	export let effectiveRuleLevel: number; // <<< ADDED: Effective level for rules/parsing
 	export let showCrafterFeedback: boolean = false;
 	export let crafterFeedbackDetails: {
 		incorrectEq: string;
@@ -69,6 +71,8 @@
 	export let isFeedbackActive: boolean = false;
 	export let waitingForPlayerStart: boolean = true;
 	export let isTimerFrozen: boolean = false;
+	export let scaledHealthBonus: number | null = null;
+	export let scaledTimeBonusSeconds: number | null = null; // ---> ADDITION: Time bonus prop
 
 	// --- Event Handlers ---
 	// Bubble up the selectSpell event from the child component
@@ -108,33 +112,33 @@
 	// (These still need to happen here as they depend on multiple props)
 	$: solverSolvingSegments = parseEquationForDisplay(
 		currentEquation.replace('?', playerInput + '_'),
-		currentLevelNumber
+		effectiveRuleLevel // Use effective level
 	);
 	$: solverResultSegments = parseEquationForDisplay(
 		lastFullEquation.replace('?', lastPlayerInput) + '_',
-		currentLevelNumber
+		effectiveRuleLevel // Use effective level
 	);
 	$: crafterCraftingSegments = parseEquationForDisplay(
 		(craftedEquationString || '') + '_',
-		currentLevelNumber
+		effectiveRuleLevel // Use effective level
 	);
-	$: crafterSolvingEqSegments = parseEquationForDisplay(craftedEquationString, currentLevelNumber);
-	$: crafterSolvingInputSegments = parseEquationForDisplay(playerInput + '_', currentLevelNumber);
+	$: crafterSolvingEqSegments = parseEquationForDisplay(craftedEquationString, effectiveRuleLevel); // Use effective level
+	$: crafterSolvingInputSegments = parseEquationForDisplay(playerInput + '_', effectiveRuleLevel); // Use effective level
 	$: crafterResultSegments = parseEquationForDisplay(
 		lastFullEquation.replace('?', lastPlayerInput) + '_',
-		currentLevelNumber
+		effectiveRuleLevel // Use effective level
 	);
 
 	// ---> ADDITION: Parse feedback strings into segments <--- */
 	$: incorrectAttemptSegments = crafterFeedbackDetails
 		? parseEquationForDisplay(
 				`${crafterFeedbackDetails.incorrectEq} = ${crafterFeedbackDetails.incorrectVal}`,
-				currentLevelNumber // Pass level, though it might not affect spacing
+				effectiveRuleLevel // Use effective level
 			)
 		: [];
 
 	$: correctSequenceSegments = crafterFeedbackDetails?.steps
-		? parseEquationForDisplay(crafterFeedbackDetails.steps.join(' = '), currentLevelNumber)
+		? parseEquationForDisplay(crafterFeedbackDetails.steps.join(' = '), effectiveRuleLevel) // Use effective level
 		: [];
 	// ---> END ADDITION <--- */
 </script>
@@ -150,6 +154,9 @@
 		{damageTaken}
 		{waitingForPlayerStart}
 		{isTimerFrozen}
+		{gameMode}
+		{crafterSubMode}
+		{scaledTimeBonusSeconds}
 	/>
 
 	<!-- Enemy Display Component -->
@@ -163,6 +170,9 @@
 		{activeBonuses}
 		{gameStatus}
 		{isEnemyTelegraphing}
+		{gameMode}
+		{crafterSubMode}
+		{scaledHealthBonus}
 	/>
 
 	<!-- Use the new SpellSelection component -->

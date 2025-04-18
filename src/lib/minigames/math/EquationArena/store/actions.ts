@@ -5,7 +5,7 @@ import { evaluate } from 'mathjs';
 import { getActiveBonuses } from '../config/bonusLogic';
 
 import { initialArenaState, type ArenaState } from './index';
-import { generateSolverEquation } from './helpers';
+import { generateSolverEquation, getConfigLookupLevel } from './helpers';
 
 import { GameStatus } from '../types';
 
@@ -22,7 +22,7 @@ type StoreUpdater = (updater: (state: ArenaState) => ArenaState) => void;
 type StoreSetter = (value: ArenaState) => void;
 
 // Helper type for setGameOverInternal
-type SetGameOverInternalFn = (state: ArenaState, message: string) => ArenaState;
+type SetGameOverInternalFn = (state: ArenaState, status: GameStatus, won?: boolean) => ArenaState;
 
 const MAX_LEVEL = 3; // Define the maximum level for the game
 
@@ -82,6 +82,7 @@ export function createInputActions(update: StoreUpdater) {
 
 export function createCrafterActions(update: StoreUpdater) {
 	const isOperator = (char: string): boolean => ['+', '-', '×', '÷', '/'].includes(char);
+
 	return {
 		appendToCraftedEquation: (char: string) =>
 			update((state) => {
@@ -98,13 +99,16 @@ export function createCrafterActions(update: StoreUpdater) {
 					}
 				}
 				const newEquation = currentEq + char;
-				const levelConfig = getCrafterLevelConfig(state.currentLevelNumber);
+
+				const configLevel = getConfigLookupLevel(state);
+				const levelConfig = getCrafterLevelConfig(configLevel);
+
 				let isValid = false;
 				if (levelConfig) {
 					isValid = levelConfig.validate(newEquation);
 				} else {
 					console.warn(
-						`No crafter config found for level ${state.currentLevelNumber} during append.`
+						`No crafter config found for lookup level ${configLevel} (actual level ${state.currentLevelNumber}) during append.`
 					);
 				}
 				return {
@@ -133,13 +137,16 @@ export function createCrafterActions(update: StoreUpdater) {
 				)
 					return state;
 				const newEquation = state.craftedEquationString.slice(0, -1);
-				const levelConfig = getCrafterLevelConfig(state.currentLevelNumber);
+
+				const configLevel = getConfigLookupLevel(state);
+				const levelConfig = getCrafterLevelConfig(configLevel);
+
 				let isValid = false;
 				if (levelConfig) {
 					isValid = levelConfig.validate(newEquation);
 				} else {
 					console.warn(
-						`No crafter config found for level ${state.currentLevelNumber} during backspace.`
+						`No crafter config found for lookup level ${configLevel} (actual level ${state.currentLevelNumber}) during backspace.`
 					);
 				}
 				return {
@@ -167,16 +174,20 @@ export function createCrafterActions(update: StoreUpdater) {
 					console.warn('Invalid equation submitted: Must contain at least one operator.');
 					return { ...state, evaluationError: 'Equation must contain at least one operator.' };
 				}
+
+				const configLevel = getConfigLookupLevel(state);
+				const levelConfig = getCrafterLevelConfig(configLevel);
+
 				if (!state.isCraftedEquationValidForLevel) {
-					console.warn('Invalid equation submitted: Does not meet level requirements.');
-					const levelConfig = getCrafterLevelConfig(state.currentLevelNumber);
+					console.warn(
+						`Invalid equation submitted: Does not meet level requirements (Lookup Level: ${configLevel})`
+					);
 					const errorMsg = levelConfig?.description
 						? `Equation does not meet level requirement: ${levelConfig.description}`
 						: 'Equation does not meet level requirements.';
 					return { ...state, evaluationError: errorMsg };
 				}
 
-				// --- New Duplicate Check ---
 				const isEquationUsed = state.usedCraftedEquations.has(trimmedEquation);
 				if (isEquationUsed) {
 					console.warn('Duplicate equation submitted during crafting!');
@@ -194,7 +205,6 @@ export function createCrafterActions(update: StoreUpdater) {
 									feedbackTimeoutId: null,
 									craftedEquationString: '', // Reset equation
 									isCraftedEquationValidForLevel: false // Reset validation
-									// Keep isCraftingPhase = true
 								};
 							}
 							return s; // Return unchanged state otherwise
@@ -213,7 +223,6 @@ export function createCrafterActions(update: StoreUpdater) {
 						// Keep isCraftingPhase = true
 					};
 				}
-				// --- End New Duplicate Check ---
 
 				// If not duplicate and all other checks passed, transition to solving phase
 				return { ...state, isCraftingPhase: false, playerInput: '', evaluationError: null };
@@ -223,22 +232,46 @@ export function createCrafterActions(update: StoreUpdater) {
 
 export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) {
 	// Helper function to avoid duplicating setGameOver logic
-	const setGameOverInternal: SetGameOverInternalFn = (state, message) => {
+	const setGameOverInternal = (state: ArenaState, status: GameStatus, won: boolean = false) => {
 		// Ensure timers are implicitly stopped by changing the status
 		// Clear timer freeze state explicitly
 		const freezeClearedState = clearTimerFreezeState(state);
-		return {
+
+		let newCrafterNormalCompleted = state.crafterNormalCompleted; // Preserve existing status by default
+
+		// Check if the player just won the Crafter Normal mode
+		if (state.gameMode === 'crafter' && state.crafterSubMode === 'normal' && won) {
+			newCrafterNormalCompleted = true; // Mark normal mode as completed
+			try {
+				if (typeof localStorage !== 'undefined') {
+					localStorage.setItem('equationArenaCrafterNormalCompleted', 'true');
+					console.log('Crafter Normal Mode completed status saved to localStorage.');
+				}
+			} catch (e) {
+				console.error('Failed to access localStorage:', e);
+			}
+		}
+
+		// Important: preserve these state values from being reset
+		const { gameMode, crafterSubMode } = state;
+
+		const finalState = {
 			...state,
 			...freezeClearedState,
-			gameStatus: GameStatus.GAME_OVER,
-			playerHealth: 0,
-			resultMessage: message,
+			gameStatus: status,
+			gameMode, // Preserve the game mode
+			crafterSubMode, // Preserve the sub-mode
+			playerHealth: status === GameStatus.GAME_OVER ? 0 : state.playerHealth,
+			resultMessage: won ? 'Victory!' : 'Player Defeated!',
 			levelEndTime: Date.now(), // Set end time on game over
 			activeBonuses: [],
 			usedCraftedEquations: new Set<string>(),
-			levelBonusesUsedThisLevel: new Set<string>() // Reset on game over
+			levelBonusesUsedThisLevel: new Set<string>(), // Reset on game over
+			crafterNormalCompleted: newCrafterNormalCompleted // Update completion status
 			// Keep score data until reset/fullReset
 		};
+
+		return finalState;
 	};
 
 	return {
@@ -254,9 +287,13 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 					// Keep grade/mode selection
 					selectedGrade: state.selectedGrade,
 					gameMode: state.gameMode,
+					// Keep subMode and completion status from *previous* state, not initial
+					crafterSubMode: state.crafterSubMode,
+					crafterNormalCompleted: state.crafterNormalCompleted,
 					// Reset tutorial state based on mode
 					needsCrafterTutorial: state.gameMode === 'crafter',
-					tutorialStep: 0 // Always reset tutorial step on game reset
+					tutorialStep: 0, // Always reset tutorial step on game reset
+					challengeEnemyScaling: new Map() // Reset scaling map
 					// Ensure feedback state is reset (covered by initialArenaState)
 				};
 				console.log(`Player HP Reset: ${newState.playerHealth}`); // Debug log
@@ -269,7 +306,8 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 				return {
 					...initialArenaState, // Resets score fields to initial values
 					...freezeClearedState,
-					enemyJustDefeated: false
+					enemyJustDefeated: false,
+					challengeEnemyScaling: new Map() // Reset scaling map
 					// Explicitly ensure scoring fields are reset by initialArenaState
 				};
 			}),
@@ -292,12 +330,23 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 				}
 				return { ...state, currentEnemyId: enemyId, currentEnemyConfig: enemyConfig };
 			}),
-		startGame: () =>
+		startGame: (mode?: GameMode, subMode?: 'normal' | 'challenge') =>
 			update((state): ArenaState => {
-				if (!state.selectedGrade || !state.gameMode) {
-					console.error('Cannot start game: Grade and Mode not selected.');
+				// Use provided mode or fallback to state's gameMode
+				const gameMode = mode || state.gameMode;
+
+				// If no gameMode is available (neither provided nor in state), can't start
+				if (!gameMode) {
+					console.error('Cannot start game: Mode not selected.');
 					return state;
 				}
+
+				// Set crafterSubMode only if the game mode is 'crafter'
+				const crafterSubMode = gameMode === 'crafter' ? subMode || null : null;
+
+				// Always preserve the completion status
+				const crafterNormalCompleted = state.crafterNormalCompleted;
+
 				// Allow starting from PRE_GAME, GAME_OVER, or FINAL_SUMMARY
 				if (
 					![GameStatus.PRE_GAME, GameStatus.GAME_OVER, GameStatus.FINAL_SUMMARY].includes(
@@ -307,59 +356,93 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 					console.warn('Game already in progress or invalid state for startGame');
 					return state;
 				}
-				const startingLevel = 1;
-				const firstEnemy = enemies.find(
-					(e: EnemyConfig) => e.mode === state.gameMode && e.level === startingLevel
-				);
-				if (!firstEnemy) {
-					console.error(`Cannot find level ${startingLevel} enemy for mode ${state.gameMode}`);
-					return initialArenaState;
+
+				// --- Determine Starting Enemy and Level ---
+				let startingLevel = 1;
+				let firstEnemy: EnemyConfig | undefined;
+				let initialConfigLookupLevel: number;
+
+				if (gameMode === 'crafter' && crafterSubMode === 'challenge') {
+					// --- Challenge Mode Start ---
+					startingLevel = 4; // Challenge mode conceptually starts after level 3
+					const availableCrafterEnemies = enemies.filter((e) => e.mode === 'crafter');
+					if (availableCrafterEnemies.length === 0) {
+						console.error('startGame: No crafter enemies found for challenge mode!');
+						return initialArenaState; // Or handle error appropriately
+					}
+					const randomIndex = Math.floor(Math.random() * availableCrafterEnemies.length);
+					firstEnemy = availableCrafterEnemies[randomIndex];
+					initialConfigLookupLevel = firstEnemy.level; // Rules based on selected enemy
+					console.log(
+						`Starting Challenge Mode at level ${startingLevel}, randomly selected enemy: ${firstEnemy.id}, using rules from level ${initialConfigLookupLevel}`
+					);
+				} else {
+					// --- Normal or Solver Mode Start ---
+					startingLevel = 1;
+					firstEnemy = enemies.find(
+						(e: EnemyConfig) => e.mode === gameMode && e.level === startingLevel
+					);
+					if (!firstEnemy) {
+						console.error(
+							`startGame: Cannot find level ${startingLevel} enemy for mode ${gameMode}`
+						);
+						return initialArenaState;
+					}
+					initialConfigLookupLevel = startingLevel; // Rules based on starting level
 				}
-				// Resetting fully to initial state, but keeping selectedGrade, gameMode, needsCrafterTutorial
+
+				// Resetting fully to initial state, but keeping selectedGrade, gameMode, etc.
 				const baseStartState: Partial<ArenaState> = {
-					...initialArenaState, // This will reset score fields
+					...initialArenaState, // Resets scores, timers, challengeEnemyScaling
 					selectedGrade: state.selectedGrade,
-					gameMode: state.gameMode,
+					gameMode: gameMode,
+					crafterSubMode: crafterSubMode,
+					crafterNormalCompleted: crafterNormalCompleted,
 					needsCrafterTutorial: state.needsCrafterTutorial,
-					// --- Game state for level 1 ---
-					currentLevelNumber: startingLevel,
+					// --- Game state for starting level ---
+					currentLevelNumber: startingLevel, // Can be 1 or 4
 					currentEnemyId: firstEnemy.id,
-					currentEnemyConfig: firstEnemy,
+					currentEnemyConfig: firstEnemy, // Use the selected base config
 					enemyHealth: firstEnemy.health,
-					playerHealth: 100, // Reset player health
+					playerHealth: 100,
 					attackTimeRemaining: firstEnemy.solveTimeSec,
 					maxAttackTime: firstEnemy.solveTimeSec,
-					selectedSpell: state.selectedSpell || 'FIRE' // Keep last selected spell or default
+					selectedSpell: state.selectedSpell || 'FIRE'
 				};
-				switch (state.gameMode) {
+
+				switch (gameMode) {
 					case 'solver': {
 						const newState = {
 							...(baseStartState as ArenaState),
-							gameStatus: GameStatus.SOLVING, // Directly to solving
+							gameStatus: GameStatus.SOLVING,
 							...generateSolverEquation(startingLevel),
 							levelStartTime: Date.now()
 						};
-						console.log(`Player HP Started (Solver): ${newState.playerHealth}`);
 						return newState;
 					}
 					case 'crafter': {
-						const startTutorial = state.needsCrafterTutorial;
-						const levelConfig = getCrafterLevelConfig(startingLevel);
+						// Use the initialConfigLookupLevel determined above
+						const levelConfig = getCrafterLevelConfig(initialConfigLookupLevel);
 						if (!levelConfig) {
-							console.error(`Crafter config for level ${startingLevel} not found!`);
+							console.error(
+								`startGame: Crafter config for lookup level ${initialConfigLookupLevel} not found!`
+							);
 							return initialArenaState;
 						}
+
+						// Determine if tutorial should start (only for Normal mode level 1)
+						const startTutorial = state.needsCrafterTutorial && crafterSubMode === 'normal';
+
 						const newState = {
 							...(baseStartState as ArenaState),
 							gameStatus: startTutorial ? GameStatus.TUTORIAL : GameStatus.SOLVING,
 							tutorialStep: startTutorial ? 1 : 0,
 							isCraftingPhase: true,
 							craftedEquationString: '',
-							allowedCrafterChars: levelConfig.allowedChars,
+							allowedCrafterChars: levelConfig.allowedChars, // Use rules matching enemy
 							isCraftedEquationValidForLevel: false,
 							levelStartTime: startTutorial ? null : Date.now()
 						};
-						console.log(`Player HP Started (Crafter): ${newState.playerHealth}`);
 						return newState;
 					}
 					default:
@@ -367,7 +450,7 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 						return initialArenaState;
 				}
 			}),
-		setGameOver: (message: string) => update((state) => setGameOverInternal(state, message)),
+		setGameOver: () => update((state) => setGameOverInternal(state, GameStatus.GAME_OVER)),
 		finalizeVictory: () => {
 			update((state) => {
 				// Apply completion bonus
@@ -382,18 +465,46 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 					}
 				];
 
-				// Check if this was the last level
-				const isLastLevel = state.currentLevelNumber >= MAX_LEVEL;
+				// Check if this is truly the final level (considering mode)
+				const isFinalLevelOfMode =
+					(state.gameMode === 'solver' ||
+						(state.gameMode === 'crafter' && state.crafterSubMode === 'normal')) &&
+					state.currentLevelNumber >= MAX_LEVEL;
 
-				// Set game status to GAME_OVER (will be shown by ResultsScreen) or FINAL_SUMMARY
-				return {
+				// For normal mode completion, preserve the completion status
+				let newCrafterNormalCompleted = state.crafterNormalCompleted;
+
+				if (
+					isFinalLevelOfMode &&
+					state.gameMode === 'crafter' &&
+					state.crafterSubMode === 'normal'
+				) {
+					newCrafterNormalCompleted = true;
+					// Update localStorage
+					try {
+						if (typeof localStorage !== 'undefined') {
+							localStorage.setItem('equationArenaCrafterNormalCompleted', 'true');
+							console.log(
+								'Crafter Normal Mode completed status saved to localStorage from finalizeVictory.'
+							);
+						}
+					} catch (e) {
+						console.error('Failed to access localStorage:', e);
+					}
+				}
+
+				// Set game status to GAME_OVER (triggers ResultsScreen) or FINAL_SUMMARY
+				const finalState = {
 					...state,
 					currentLevelScore: finalLevelScore, // Update score to include completion bonus for display
 					totalGameScore: newTotalScore,
 					completedLevelsData: newCompletedData,
-					gameStatus: isLastLevel ? GameStatus.FINAL_SUMMARY : GameStatus.GAME_OVER,
-					resultMessage: isLastLevel ? 'All Levels Cleared!' : 'Victory!'
+					gameStatus: isFinalLevelOfMode ? GameStatus.FINAL_SUMMARY : GameStatus.GAME_OVER,
+					resultMessage: isFinalLevelOfMode ? 'All Levels Cleared!' : 'Victory!',
+					crafterNormalCompleted: newCrafterNormalCompleted
 				};
+
+				return finalState;
 			});
 		},
 		advanceLevelAndStart: () =>
@@ -409,44 +520,155 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 
 				const nextLevelNumber = state.currentLevelNumber + 1;
 
-				// Check if next level exceeds max level AFTER victory is finalized
-				// Note: finalizeVictory handles the transition to FINAL_SUMMARY if needed.
-				// This action should only be called if the game isn't over yet.
+				// Special handling for crafter normal mode completion - Handled by finalizeVictory setting FINAL_SUMMARY now
+				// if (state.gameMode === 'crafter' && state.crafterSubMode === 'normal') { ... }
 
-				const nextEnemy = enemies.find(
-					(e: EnemyConfig) => e.mode === state.gameMode && e.level === nextLevelNumber
-				);
-				if (!nextEnemy) {
-					// This case should ideally be handled by finalizeVictory setting FINAL_SUMMARY
-					console.error(
-						`Unexpected: advanceLevelAndStart called but no next enemy found (level ${nextLevelNumber}). Should have gone to FINAL_SUMMARY.`
+				// --- Determine the next enemy configuration ---
+				let nextEnemyBaseConfig: EnemyConfig | undefined;
+				const newChallengeEnemyScaling = new Map(state.challengeEnemyScaling); // Copy map
+
+				if (state.gameMode === 'crafter' && state.crafterSubMode === 'challenge') {
+					// --- Challenge Mode Enemy Selection & Scaling ---
+					const availableCrafterEnemies = enemies.filter((e) => e.mode === 'crafter');
+					const possibleNextEnemies = availableCrafterEnemies.filter(
+						(e) => e.id !== state.currentEnemyId
 					);
-					return {
-						...state, // Keep existing state, but maybe go PRE_GAME?
-						gameStatus: GameStatus.PRE_GAME,
-						resultMessage: 'Error: Could not find next level.'
+
+					// If filtering leaves no options (e.g., only 1 enemy defined), use all available
+					const enemyPool =
+						possibleNextEnemies.length > 0 ? possibleNextEnemies : availableCrafterEnemies;
+
+					if (enemyPool.length === 0) {
+						console.error('advanceLevelAndStart: No crafter enemies found in config!');
+						return {
+							...state,
+							gameStatus: GameStatus.PRE_GAME,
+							resultMessage: 'Error: No enemies defined.'
+						};
+					}
+
+					// Select a random enemy from the pool
+					const randomIndex = Math.floor(Math.random() * enemyPool.length);
+					nextEnemyBaseConfig = enemyPool[randomIndex];
+					console.log(
+						`Challenge mode: Randomly selected enemy ${nextEnemyBaseConfig.id} for level ${nextLevelNumber}`
+					);
+
+					// --- Calculate Scaled Stats ---
+					const scalingInfo = state.challengeEnemyScaling.get(nextEnemyBaseConfig.id) || {
+						healthScaleLevel: 0,
+						intervalScaleLevel: 0
 					};
+					const { healthScaleLevel, intervalScaleLevel } = scalingInfo;
+
+					// Check if we've seen this enemy before by checking if it's in the scaling map
+					let effectiveHealthLevel = healthScaleLevel;
+					const effectiveIntervalLevel = intervalScaleLevel;
+
+					// If the current level is NOT the first challenge level (level 4) AND this enemy has no scaling yet,
+					// it means we've seen other enemies but not this one yet - give it at least level 1 scaling
+					if (state.currentLevelNumber > 4 && healthScaleLevel === 0 && intervalScaleLevel === 0) {
+						if (!state.challengeEnemyScaling.has(nextEnemyBaseConfig.id)) {
+							console.log(
+								`First time seeing ${nextEnemyBaseConfig.id} in this Challenge run, starting at base level 1 scaling`
+							);
+							effectiveHealthLevel = 1; // Start at level 1 instead of 0 for repeat enemies after level 4
+						}
+					}
+
+					// Example scaling: +10% base health per health level, -10% base interval per interval level
+					const healthIncreaseFactor = 0.1;
+					const intervalDecreaseFactor = 0.1;
+					const minAttackIntervalMs = 2000; // Minimum attack interval
+
+					const scaledHealth = Math.round(
+						nextEnemyBaseConfig.health * (1 + effectiveHealthLevel * healthIncreaseFactor)
+					);
+					const scaledIntervalMs = Math.max(
+						minAttackIntervalMs,
+						Math.round(
+							nextEnemyBaseConfig.attackIntervalMs *
+								(1 - effectiveIntervalLevel * intervalDecreaseFactor)
+						)
+					);
+					const scaledSolveTimeSec = Math.max(
+						5,
+						Math.round(
+							nextEnemyBaseConfig.solveTimeSec *
+								(1 - effectiveIntervalLevel * intervalDecreaseFactor)
+						)
+					); // Scale solve time with interval
+
+					console.log(
+						`Scaling for ${nextEnemyBaseConfig.id}: hLevel=${effectiveHealthLevel}, iLevel=${effectiveIntervalLevel}`
+					);
+					console.log(
+						` Base: H=${nextEnemyBaseConfig.health}, I=${nextEnemyBaseConfig.attackIntervalMs}`
+					);
+					console.log(` Scaled: H=${scaledHealth}, I=${scaledIntervalMs}`);
+
+					// Determine which stat to scale *next* time
+					let nextHealthScaleLevel = effectiveHealthLevel; // Use the effective level
+					let nextIntervalScaleLevel = effectiveIntervalLevel; // Use the effective level
+
+					if (effectiveHealthLevel <= effectiveIntervalLevel) {
+						nextHealthScaleLevel++;
+						console.log(
+							` -> Next scale for ${nextEnemyBaseConfig.id}: HEALTH (level ${nextHealthScaleLevel})`
+						);
+					} else {
+						nextIntervalScaleLevel++;
+						console.log(
+							` -> Next scale for ${nextEnemyBaseConfig.id}: INTERVAL (level ${nextIntervalScaleLevel})`
+						);
+					}
+
+					// Update the scaling map for the *next* encounter
+					newChallengeEnemyScaling.set(nextEnemyBaseConfig.id, {
+						healthScaleLevel: nextHealthScaleLevel,
+						intervalScaleLevel: nextIntervalScaleLevel
+					});
+
+					// Create the enemy config object with the *current* scaled stats
+					nextEnemyBaseConfig = {
+						...nextEnemyBaseConfig,
+						health: scaledHealth,
+						attackIntervalMs: scaledIntervalMs,
+						solveTimeSec: scaledSolveTimeSec // Use scaled solve time
+					};
+				} else {
+					// --- Solver or Crafter Normal Mode ---
+					nextEnemyBaseConfig = enemies.find(
+						(e: EnemyConfig) => e.mode === state.gameMode && e.level === nextLevelNumber
+					);
+				}
+
+				if (!nextEnemyBaseConfig) {
+					console.error(`Cannot find level ${nextLevelNumber} enemy for mode ${state.gameMode}`);
+					return initialArenaState;
 				}
 
 				// Prepare base state for the next level
 				const baseNextLevelState: Partial<ArenaState> = {
-					// Reset most state to initial, but preserve some
 					...initialArenaState,
 					selectedGrade: state.selectedGrade,
 					gameMode: state.gameMode,
-					needsCrafterTutorial: state.needsCrafterTutorial, // Persist tutorial completion status
+					crafterSubMode: state.crafterSubMode,
+					crafterNormalCompleted: state.crafterNormalCompleted,
+					needsCrafterTutorial: state.needsCrafterTutorial,
 					// --- Preserve Cross-Game State ---
-					totalGameScore: state.totalGameScore, // Keep the accumulated score
-					completedLevelsData: state.completedLevelsData, // Keep completed level data
+					totalGameScore: state.totalGameScore,
+					completedLevelsData: state.completedLevelsData,
+					challengeEnemyScaling: newChallengeEnemyScaling, // Use the updated map
 					// --- Set Next Level State ---
 					currentLevelNumber: nextLevelNumber,
-					currentEnemyId: nextEnemy.id,
-					currentEnemyConfig: nextEnemy,
-					enemyHealth: nextEnemy.health,
-					playerHealth: 100, // Reset player health for new level
-					attackTimeRemaining: nextEnemy.solveTimeSec,
-					maxAttackTime: nextEnemy.solveTimeSec,
-					selectedSpell: state.selectedSpell || 'FIRE' // Keep last selected spell or default
+					currentEnemyId: nextEnemyBaseConfig.id,
+					currentEnemyConfig: nextEnemyBaseConfig, // Use the (potentially scaled) config
+					enemyHealth: nextEnemyBaseConfig.health, // Use health from the config
+					playerHealth: 100,
+					attackTimeRemaining: nextEnemyBaseConfig.solveTimeSec, // Use solve time from config
+					maxAttackTime: nextEnemyBaseConfig.solveTimeSec,
+					selectedSpell: state.selectedSpell || 'FIRE'
 				};
 
 				// Reset level-specific scoring fields explicitly
@@ -464,28 +686,47 @@ export function createLifecycleActions(update: StoreUpdater, _set: StoreSetter) 
 							levelStartTime: Date.now() // Set start time
 						};
 					case 'crafter': {
-						const levelConfig = getCrafterLevelConfig(nextLevelNumber);
+						// Determine which level's config to use based on the selected enemy
+						let configLookupLevel: number;
+						if (state.crafterSubMode === 'challenge') {
+							// In challenge mode, the rules are tied to the chosen enemy's original level
+							configLookupLevel = nextEnemyBaseConfig.level; // Use the enemy's original level
+							console.log(
+								`Challenge mode: Enemy ${nextEnemyBaseConfig.id} selected, using rules from level ${configLookupLevel}`
+							);
+						} else {
+							// Normal mode: Rules match the current level number
+							configLookupLevel = nextLevelNumber;
+						}
+
+						const levelConfig = getCrafterLevelConfig(configLookupLevel);
+
 						if (!levelConfig) {
-							console.error(`Crafter config for level ${nextLevelNumber} not found!`);
+							console.error(
+								`advanceLevelAndStart: Crafter config for lookup level ${configLookupLevel} (actual level ${nextLevelNumber}) not found!`
+							);
 							return {
 								...state,
 								gameStatus: GameStatus.PRE_GAME, // Go back to pre-game on error
-								resultMessage: `Error: Level ${nextLevelNumber} config missing.`,
+								resultMessage: `Error: Level ${configLookupLevel} config missing.`,
 								// Ensure scoring is reset
 								currentLevelScore: 0,
 								levelBonusesUsedThisLevel: new Set<string>(),
 								currentLevelBonuses: []
 							};
 						}
-						return {
+
+						const nextLevelState = {
 							...(baseNextLevelState as ArenaState),
 							gameStatus: GameStatus.SOLVING,
 							isCraftingPhase: true,
 							craftedEquationString: '',
-							allowedCrafterChars: levelConfig.allowedChars,
+							allowedCrafterChars: levelConfig.allowedChars, // Use rules based on enemy's original level
 							isCraftedEquationValidForLevel: false,
 							levelStartTime: Date.now() // Set start time
 						};
+
+						return nextLevelState;
 					}
 					default:
 						console.error('Unknown game mode during advanceLevelAndStart');
@@ -551,7 +792,7 @@ export function createEntityActions(
 				if (newHealth <= 0) {
 					// Use setGameOverInternal directly to ensure immediate state change
 					console.log(`Player HP Updated: ${newHealth} (Defeated)`); // Log HP on defeat
-					return setGameOverInternal(state, 'Player Defeated!');
+					return setGameOverInternal(state, GameStatus.GAME_OVER);
 				} else {
 					return { ...state, playerHealth: newHealth };
 				}
@@ -711,11 +952,12 @@ export function createGameplayActions(
 					// --- Handle Bonuses (Crafter Mode Only) ---
 					if (intermediateState.gameMode === 'crafter' && expected !== null) {
 						newUsedEquations.add(intermediateState.craftedEquationString);
+						const configLevelForBonuses = getConfigLookupLevel(intermediateState);
 						currentActiveBonuses = getActiveBonuses(
 							intermediateState.craftedEquationString,
 							intermediateState.playerInput,
 							expected,
-							intermediateState.currentLevelNumber,
+							configLevelForBonuses,
 							intermediateState.gameMode
 						);
 
@@ -811,12 +1053,10 @@ export function createGameplayActions(
 
 					const shouldShowDetailedFeedback =
 						intermediateState.gameMode === 'crafter' &&
-						intermediateState.currentLevelNumber <= 3 && // Only for early levels
 						!evaluationResult.error && // Only if the crafted equation was valid math
 						expected !== null; // Only if we had a valid target value
 
 					if (shouldShowDetailedFeedback) {
-						console.log('Incorrect answer, showing detailed feedback.');
 						intermediateState.crafterFeedbackDetails = {
 							incorrectEq: intermediateState.craftedEquationString,
 							incorrectVal: currentInput,
@@ -874,7 +1114,7 @@ export function createGameplayActions(
 						intermediateState.playerHealth = newPlayerHealth;
 						if (newPlayerHealth <= 0) {
 							// Use setGameOverInternal to handle game over logic
-							intermediateState = setGameOverInternal(intermediateState, 'Defeated by Mistakes!');
+							intermediateState = setGameOverInternal(intermediateState, GameStatus.GAME_OVER);
 							console.log(`Player HP Updated: ${newPlayerHealth} (Defeated by Mistakes)`);
 						}
 					}
