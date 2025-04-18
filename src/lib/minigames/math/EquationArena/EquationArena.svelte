@@ -155,7 +155,19 @@
 	}
 	// Crafter Input
 	function handleCrafterInputCharEvent(event: CustomEvent<string>) {
-		arenaStore.appendToCraftedEquation(event.detail);
+		const char = event.detail;
+		if ($arenaStore.isCraftingPhase) {
+			// Original crafting logic (input validation happens in numpad/store)
+			arenaStore.appendToCraftedEquation(char);
+		} else if (
+			char === '/' &&
+			$arenaStore.gameStatus === GameStatus.SOLVING &&
+			$arenaStore.currentLevelNumber === 2
+		) {
+			// Handle '/' input during solving phase for level 2 from numpad
+			arenaStore.handleInput(char);
+		}
+		// Potentially add '.' handling here later if needed for solving phase numpad input
 	}
 	function handleClearCraftedEvent() {
 		arenaStore.clearCraftedEquation();
@@ -174,6 +186,10 @@
 			globalConfig.FIRE_DAMAGE,
 			globalConfig.CRAFTER_FEEDBACK_DISPLAY_DURATION
 		);
+	}
+	// Crafter Reset Event
+	function handleResetCrafterEvent() {
+		arenaStore.resetCrafterState();
 	}
 
 	// --- ResultsScreen Event Handlers ---
@@ -813,6 +829,7 @@
 				gameMode={$arenaStore.gameMode}
 				crafterSubMode={$arenaStore.crafterSubMode}
 				{scaledTimeBonusSeconds}
+				currentLevelNumber={$arenaStore.currentLevelNumber}
 				on:selectSpell={handleSelectSpellEvent}
 				on:handleInput={handleInputEvent}
 				on:clearInput={handleClearInputEvent}
@@ -823,6 +840,7 @@
 				on:backspaceCrafted={handleBackspaceCraftedEvent}
 				on:submitEquation={handleSubmitEquationEvent}
 				on:startLevel={handleStartLevel}
+				on:resetCrafter={handleResetCrafterEvent}
 			/>
 		{:else if $arenaStore.gameStatus === GameStatus.FINAL_SUMMARY}
 			<FinalSummaryScreen

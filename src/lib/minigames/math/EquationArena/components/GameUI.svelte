@@ -29,6 +29,8 @@
 		castSpell: void;
 		// Level start event
 		startLevel: void;
+		// Reset Crafter back to crafting phase
+		resetCrafter: void;
 	}>();
 
 	// --- Exported Props ---
@@ -55,7 +57,7 @@
 	export let crafterLevelDescription: string | null = null;
 	export let activeBonuses: BonusConfig[] = [];
 	export let evaluationError: string | null = null;
-	export let allowedCrafterChars: string[] | null = null;
+	export let allowedChars: string[] | null = null;
 	export let isCraftedEquationValidForLevel: boolean = true;
 	export let currentLevelNumber: number = 1;
 	export let effectiveRuleLevel: number; // <<< ADDED: Effective level for rules/parsing
@@ -89,23 +91,16 @@
 	function handleAnswerBackspace() {
 		dispatch('handleBackspace');
 	}
-	function handleCrafterInputChar(event: CustomEvent<string>) {
-		dispatch('inputChar', event.detail);
-	}
-	function handleClearCraftedEquation() {
-		dispatch('clearCrafted');
-	}
-	function handleCrafterBackspace() {
-		dispatch('backspaceCrafted');
-	}
-	function handleSubmitEquation() {
-		dispatch('submitEquation');
-	}
 	function handleCastSpell() {
 		dispatch('castSpell');
 	}
 	function handleStartLevel() {
 		dispatch('startLevel');
+	}
+
+	// ADDED: Handler for the reset event from CrafterNumpad
+	function handleResetToCrafting() {
+		dispatch('resetCrafter'); // Dispatch a new event upwards
 	}
 
 	// --- Reactive Segment Calculations ---
@@ -234,17 +229,19 @@
 				{playerInput}
 				{selectedSpell}
 				{craftedEquationString}
-				allowedChars={allowedCrafterChars}
+				{allowedChars}
 				{isCraftedEquationValidForLevel}
 				{waitingForPlayerStart}
-				on:inputChar={handleCrafterInputChar}
-				on:clear={handleClearCraftedEquation}
-				on:backspace={handleCrafterBackspace}
-				on:submitEquation={handleSubmitEquation}
+				{currentLevelNumber}
+				on:inputChar={(e: CustomEvent<string>) => dispatch('inputChar', e.detail)}
+				on:backspace={() => dispatch('backspaceCrafted')}
+				on:clear={() => dispatch('clearCrafted')}
+				on:submitEquation={() => dispatch('submitEquation')}
 				on:castSpell={handleCastSpell}
 				on:inputNumber={handleAnswerInput}
 				on:backspaceAnswer={handleAnswerBackspace}
 				on:clearAnswer={handleClearAnswerInput}
+				on:resetToCrafting={handleResetToCrafting}
 			/>
 		{/if}
 	</div>
