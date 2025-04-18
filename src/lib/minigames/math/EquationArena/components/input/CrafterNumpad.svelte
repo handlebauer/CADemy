@@ -35,6 +35,8 @@
 	export let isCraftedEquationValidForLevel: boolean = false;
 	// ADD: Prop to disable based on player start confirmation
 	export let waitingForPlayerStart: boolean = false;
+	// ADD: Prop for current level number
+	export let currentLevelNumber: number;
 
 	// Local validation logic has been moved to ../../utils/equationInputValidation.ts
 </script>
@@ -77,9 +79,12 @@
 		class="op-btn"
 		on:click={() => dispatch('inputChar', '/')}
 		disabled={waitingForPlayerStart ||
-			!isCraftingPhase ||
-			!isOperatorAllowed('/', craftedEquationString, allowedChars)}>÷</button
+			(isCraftingPhase
+				? !isOperatorAllowed('/', craftedEquationString, allowedChars) // Original crafting disable logic
+				: !(gameStatus === GameStatus.SOLVING && currentLevelNumber === 2))}
 	>
+		÷
+	</button>
 
 	<!-- Row 2 -->
 	<button
