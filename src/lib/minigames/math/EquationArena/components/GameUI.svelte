@@ -29,6 +29,8 @@
 		castSpell: void;
 		// Level start event
 		startLevel: void;
+		// Reset Crafter back to crafting phase
+		resetCrafter: void;
 	}>();
 
 	// --- Exported Props ---
@@ -106,6 +108,11 @@
 	}
 	function handleStartLevel() {
 		dispatch('startLevel');
+	}
+
+	// ADDED: Handler for the reset event from CrafterNumpad
+	function handleResetToCrafting() {
+		dispatch('resetCrafter'); // Dispatch a new event upwards
 	}
 
 	// --- Reactive Segment Calculations ---
@@ -245,6 +252,7 @@
 				on:inputNumber={handleAnswerInput}
 				on:backspaceAnswer={handleAnswerBackspace}
 				on:clearAnswer={handleClearAnswerInput}
+				on:resetToCrafting={handleResetToCrafting}
 			/>
 		{/if}
 	</div>

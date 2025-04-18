@@ -175,6 +175,10 @@
 			globalConfig.CRAFTER_FEEDBACK_DISPLAY_DURATION
 		);
 	}
+	// Crafter Reset Event
+	function handleResetCrafterEvent() {
+		arenaStore.resetCrafterState();
+	}
 
 	// --- ResultsScreen Event Handlers ---
 	function handleExitGameEvent() {
@@ -823,6 +827,7 @@
 				on:backspaceCrafted={handleBackspaceCraftedEvent}
 				on:submitEquation={handleSubmitEquationEvent}
 				on:startLevel={handleStartLevel}
+				on:resetCrafter={handleResetCrafterEvent}
 			/>
 		{:else if $arenaStore.gameStatus === GameStatus.FINAL_SUMMARY}
 			<FinalSummaryScreen

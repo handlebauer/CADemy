@@ -19,6 +19,7 @@
 		backspaceAnswer: void; // Backspace for answer
 		clearAnswer: void; // Clear for answer
 		castSpell: void; // For casting after crafting/answering
+		resetToCrafting: void;
 	}>();
 
 	// Props needed for conditional button logic
@@ -43,7 +44,17 @@
 	<!-- Row 1 -->
 	<button
 		class="action-btn clear-btn"
-		on:click={() => dispatch(isCraftingPhase ? 'clear' : 'clearAnswer')}
+		on:click={() => {
+			if (isCraftingPhase) {
+				dispatch('clear');
+			} else if (gameStatus === GameStatus.SOLVING) {
+				// If solving the answer, reset completely
+				dispatch('resetToCrafting');
+			} else {
+				// Otherwise (e.g., RESULT phase), just clear the answer input visually
+				dispatch('clearAnswer');
+			}
+		}}
 		disabled={waitingForPlayerStart}>C</button
 	>
 	<div class="paren-buttons">

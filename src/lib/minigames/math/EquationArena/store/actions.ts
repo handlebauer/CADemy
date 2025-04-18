@@ -226,6 +226,25 @@ export function createCrafterActions(update: StoreUpdater) {
 
 				// If not duplicate and all other checks passed, transition to solving phase
 				return { ...state, isCraftingPhase: false, playerInput: '', evaluationError: null };
+			}),
+		resetCrafterState: () =>
+			update((state) => {
+				// Only allow reset if in Crafter mode and currently in the answer phase
+				if (
+					state.gameMode !== 'crafter' ||
+					state.isCraftingPhase ||
+					state.gameStatus !== GameStatus.SOLVING
+				)
+					return state;
+
+				return {
+					...state,
+					isCraftingPhase: true, // Go back to crafting phase
+					craftedEquationString: '', // Clear the equation
+					playerInput: '', // Clear the answer input
+					evaluationError: null, // Clear any lingering errors
+					isCraftedEquationValidForLevel: false // Reset validation state
+				};
 			})
 	};
 }
