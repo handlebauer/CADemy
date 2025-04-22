@@ -24,7 +24,6 @@ export const auth = betterAuth({
 	appUrl: env.BETTER_AUTH_URL || 'http://localhost:5173',
 	emailAndPassword: {
 		enabled: true
-		// Better-auth will handle password hashing and verification internally
 	},
 	session: {
 		strategy: 'database',
@@ -37,8 +36,6 @@ export const auth = betterAuth({
 			return {
 				...session, // Spread existing session properties
 				user: {
-					// The original session likely doesn't have a user property to spread,
-					// so we just create the user object with the ID.
 					id: user.id // Add the user ID
 				}
 			};
