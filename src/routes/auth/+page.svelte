@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { fly } from 'svelte/transition';
 	import { signIn, signUp, client } from '$lib/auth-client';
 
 	let showLoginForm = true;
@@ -13,7 +12,6 @@
 	let password = '';
 	let confirmPassword = '';
 	let username = '';
-	let name = '';
 
 	// Form validation and errors
 	let loginError = '';
@@ -95,7 +93,7 @@
 				{
 					email,
 					password,
-					name: name || username,
+					name: username,
 					callbackURL: '/'
 				},
 				{
@@ -127,7 +125,7 @@
 
 	<div class="form-container">
 		{#if showLoginForm}
-			<div class="auth-form" transition:fly={{ y: 20, duration: 300 }}>
+			<div class="auth-form">
 				<h2>Log In</h2>
 
 				{#if loginError}
@@ -152,7 +150,7 @@
 					</div>
 
 					<button type="submit" class="submit-button" disabled={isSubmitting}>
-						{isSubmitting ? 'Logging in...' : 'Log in'}
+						{isSubmitting ? 'Logging in...' : 'Enter'}
 					</button>
 				</form>
 
@@ -166,7 +164,7 @@
 		{/if}
 
 		{#if showSignupForm}
-			<div class="auth-form" transition:fly={{ y: 20, duration: 300 }}>
+			<div class="auth-form">
 				<h2>Sign Up</h2>
 
 				{#if signupError}
@@ -194,11 +192,6 @@
 							required
 							autocomplete="username"
 						/>
-					</div>
-
-					<div class="form-group">
-						<label for="signup-name">Full Name (optional)</label>
-						<input type="text" id="signup-name" bind:value={name} autocomplete="name" />
 					</div>
 
 					<div class="form-group">
@@ -290,7 +283,7 @@
 		background-color: rgba(128, 128, 128, 0.8);
 		color: white;
 		border: none;
-		border-radius: 8px;
+		border-radius: 6px;
 		padding: 0.75rem 1.5rem;
 		font-size: 1.25rem;
 		cursor: pointer;
@@ -328,11 +321,12 @@
 	}
 
 	.auth-form {
-		background: white;
-		border-radius: 12px;
+		background: rgba(240, 240, 235, 0.7);
+		border-radius: 6px;
 		padding: 2rem;
 		width: 100%;
-		box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+		box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+		color: #333;
 	}
 
 	h2 {
@@ -357,10 +351,11 @@
 	input {
 		width: 100%;
 		padding: 0.75rem;
-		border: 1px solid #ddd;
-		border-radius: 4px;
+		border: 1px solid #ccc;
+		border-radius: 2px;
 		font-size: 1rem;
-		background-color: white;
+		background-color: rgba(255, 255, 255, 0.8);
+		box-sizing: border-box;
 	}
 
 	input:focus {
@@ -375,11 +370,12 @@
 		background-color: #4a90e2;
 		color: white;
 		border: none;
-		border-radius: 4px;
+		border-radius: 2px;
 		font-size: 1rem;
 		cursor: pointer;
 		margin-top: 1rem;
 		transition: background-color 0.2s;
+		box-sizing: border-box;
 	}
 
 	.submit-button:hover:not(:disabled) {
