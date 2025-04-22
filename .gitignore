@@ -1,4 +1,6 @@
-node_modules
+# Local directories
+**/node_modules
+examples/
 
 # Output
 .output
@@ -23,6 +25,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 # Docs
+CLAUDE.md
 INSTRUCTIONS.md
 three-js.md
 generated-schema.ts

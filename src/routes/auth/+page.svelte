@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { fly } from 'svelte/transition';
+	import { signIn, signUp, client } from '$lib/auth-client';
 
 	let showLoginForm = true;
 	let showSignupForm = false;
@@ -19,8 +20,18 @@
 	let signupError = '';
 	let isSubmitting = false;
 
-	// Randomly select background on load
+	// Use the session store from the client
+	const session = client.useSession();
+
+	// Redirect if logged in and randomly select background on mount
 	onMount(() => {
+		// Check if already logged in using the session store
+		if ($session.data) {
+			goto('/');
+			return;
+		}
+
+		// Pick random background
 		const bgNum = Math.random() > 0.5 ? 1 : 2;
 		backgroundImage = `/bg${bgNum}.png`;
 	});
@@ -44,39 +55,20 @@
 
 		isSubmitting = true;
 		try {
-			const formData = new FormData();
-			formData.append('email', email);
-			formData.append('password', password);
-
-			const response = await fetch('?/login', {
-				method: 'POST',
-				body: formData // Send FormData instead of JSON
-				// Remove Content-Type header, fetch handles it for FormData
-			});
-
-			// SvelteKit action responses might not be JSON by default when using FormData
-			// Check response status and potentially read text or handle redirects
-			if (response.ok && response.redirected) {
-				// Successful login often results in a redirect
-				window.location.href = response.url; // Follow redirect manually
-				return; // Stop processing
-			} else if (response.ok) {
-				// Maybe success without redirect? Or handle JSON response if configured
-				const result = await response.json(); // Attempt to parse JSON if needed
-				if (result.success) {
-					goto('/'); // Or use goto if preferred
-				} else {
-					loginError = result.error || 'Login failed. Check response.';
+			await signIn.email(
+				{
+					email,
+					password,
+					callbackURL: '/'
+				},
+				{
+					onError: (context) => {
+						loginError = context.error.message || 'Login failed. Please try again.';
+					}
 				}
-			} else {
-				// Handle non-OK responses (e.g., 400, 401, 500)
-				const result = await response
-					.json()
-					.catch(() => ({ error: 'Login failed. Invalid server response.' }));
-				loginError = result.error || `Login failed (${response.status} ${response.statusText})`;
-			}
+			);
 		} catch (error) {
-			loginError = 'An error occurred. Please try again.';
+			loginError = error instanceof Error ? error.message : 'An error occurred. Please try again.';
 			console.error('Login error:', error);
 		} finally {
 			isSubmitting = false;
@@ -99,37 +91,21 @@
 
 		isSubmitting = true;
 		try {
-			const formData = new FormData();
-			formData.append('email', email);
-			formData.append('password', password);
-			formData.append('username', username);
-			formData.append('name', name || username);
-
-			const response = await fetch('?/signup', {
-				method: 'POST',
-				body: formData // Send FormData instead of JSON
-				// Remove Content-Type header
-			});
-
-			// Similar response handling as login
-			if (response.ok && response.redirected) {
-				window.location.href = response.url; // Follow redirect manually
-				return;
-			} else if (response.ok) {
-				const result = await response.json(); // Attempt to parse JSON if needed
-				if (result.success) {
-					goto('/'); // Redirect on success
-				} else {
-					signupError = result.error || 'Signup failed. Check response.';
+			await signUp.email(
+				{
+					email,
+					password,
+					name: name || username,
+					callbackURL: '/'
+				},
+				{
+					onError: (context) => {
+						signupError = context.error.message || 'Signup failed. Please try again.';
+					}
 				}
-			} else {
-				const result = await response
-					.json()
-					.catch(() => ({ error: 'Signup failed. Invalid server response.' }));
-				signupError = result.error || `Signup failed (${response.status} ${response.statusText})`;
-			}
+			);
 		} catch (error) {
-			signupError = 'An error occurred. Please try again.';
+			signupError = error instanceof Error ? error.message : 'An error occurred. Please try again.';
 			console.error('Signup error:', error);
 		} finally {
 			isSubmitting = false;
