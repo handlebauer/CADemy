@@ -42,6 +42,7 @@ export const accounts = pgTable(
 	},
 	(account) => ({
 		providerProviderAccountIdIndex: uniqueIndex('account_provider_providerId_idx').on(
+			account.accountId,
 			account.providerId
 		)
 	})
