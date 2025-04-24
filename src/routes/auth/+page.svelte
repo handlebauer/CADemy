@@ -35,11 +35,27 @@
 	});
 
 	function showLogin() {
+		// Reset form data when switching to login
+		email = '';
+		password = '';
+		confirmPassword = '';
+		username = '';
+		loginError = '';
+		signupError = '';
+
 		showSignupForm = false;
 		showLoginForm = true;
 	}
 
 	function showSignup() {
+		// Reset form data when switching to signup
+		email = '';
+		password = '';
+		confirmPassword = '';
+		username = '';
+		loginError = '';
+		signupError = '';
+
 		showLoginForm = false;
 		showSignupForm = true;
 	}
