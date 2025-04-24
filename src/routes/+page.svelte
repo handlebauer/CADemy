@@ -104,10 +104,10 @@
 				</nav>
 			</div>
 			<div class="user-info">
-				{#if $session.data}
-					<span class="username">{$session.data.user?.name || $session.data.user?.email}</span>
-					<button class="logout-button" on:click={handleSignOut}>Log Out</button>
-				{/if}
+				<span class="username"
+					>{$session.data?.user?.name || $session.data?.user?.email || 'Unknown User'}</span
+				>
+				<button class="logout-button" on:click={handleSignOut}>Log Out</button>
 			</div>
 		</div>
 	</header>
