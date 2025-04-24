@@ -9,7 +9,6 @@ export interface LessonNodeData {
 	position: { x: number; y: number }; // Position on the 2D map plane
 	connections: string[]; // IDs of nodes this one connects to
 	minigame?: Minigame; // Optional: Enum identifying the minigame
-	// Add other properties as needed, e.g., difficulty, completion status
 }
 
 export interface SubjectMapData {
