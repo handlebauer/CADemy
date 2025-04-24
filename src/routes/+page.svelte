@@ -1,13 +1,9 @@
 <script lang="ts">
-	// External imports
-	// REMOVED: import type { SvelteComponent } from 'svelte';
-
 	// Component imports
 	import MapCanvas from '$lib/components/MapCanvas.svelte';
 
 	// Type & constant imports
 	import type { SubjectMapData } from '$lib/types/map';
-	// REMOVED: LessonNodeData from the import below
 	import type { Subject } from '$lib/types/subjects';
 	import { SUBJECTS } from '$lib/types/subjects';
 
@@ -83,8 +79,9 @@
 		}
 	}
 
-	function handleSignOut() {
-		client.signOut();
+	async function handleSignOut() {
+		await client.signOut();
+		window.location.reload();
 	}
 </script>
 
