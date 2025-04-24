@@ -1,18 +1,22 @@
 <script lang="ts">
 	// External imports
-	import type { SvelteComponent } from 'svelte';
+	// REMOVED: import type { SvelteComponent } from 'svelte';
 
 	// Component imports
 	import MapCanvas from '$lib/components/MapCanvas.svelte';
 
 	// Type & constant imports
-	import type { SubjectMapData, LessonNodeData } from '$lib/types/map';
+	import type { SubjectMapData } from '$lib/types/map';
+	// REMOVED: LessonNodeData from the import below
 	import type { Subject } from '$lib/types/subjects';
 	import { SUBJECTS } from '$lib/types/subjects';
 
 	// Utility imports
 	import { getMapData } from '$lib/mapData';
 	import { minigameStore } from '$lib/stores/minigameStore';
+	import { client } from '$lib/auth-client';
+
+	const session = client.useSession();
 
 	let selectedSubject: Subject = SUBJECTS[0];
 	let currentMapData: SubjectMapData | undefined;
@@ -78,20 +82,37 @@
 			minigameStore.loadSelectedMinigame();
 		}
 	}
+
+	function handleSignOut() {
+		client.signOut();
+	}
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
 
 <div class="app-container">
 	<header>
-		<h1>Incept Layer 2 - Overworld</h1>
-		<nav class="subject-tabs">
-			{#each SUBJECTS as subject}
-				<button on:click={() => selectSubject(subject)} class:active={selectedSubject === subject}>
-					{subject}
-				</button>
-			{/each}
-		</nav>
+		<div class="header-content">
+			<div class="header-left">
+				<h1>Incept Layer 2 - Overworld</h1>
+				<nav class="subject-tabs">
+					{#each SUBJECTS as subject (subject)}
+						<button
+							on:click={() => selectSubject(subject)}
+							class:active={selectedSubject === subject}
+						>
+							{subject}
+						</button>
+					{/each}
+				</nav>
+			</div>
+			<div class="user-info">
+				{#if $session.data}
+					<span class="username">{$session.data.user?.name || $session.data.user?.email}</span>
+					<button class="logout-button" on:click={handleSignOut}>Log Out</button>
+				{/if}
+			</div>
+		</div>
 	</header>
 
 	<main>
@@ -136,6 +157,32 @@
 		padding: 0.5rem 1rem;
 		background-color: #eee;
 		border-bottom: 1px solid #ccc;
+	}
+	.header-content {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+	.header-left {
+		flex: 1;
+	}
+	.user-info {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+	.username {
+		font-weight: 500;
+	}
+	.logout-button {
+		padding: 0.4rem 0.8rem;
+		border: 1px solid #ccc;
+		background-color: #fff;
+		cursor: pointer;
+		border-radius: 4px;
+	}
+	.logout-button:hover {
+		background-color: #f0f0f0;
 	}
 	.subject-tabs button {
 		padding: 0.5rem 1rem;
