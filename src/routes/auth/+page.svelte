@@ -102,6 +102,22 @@
 					}
 				}
 			);
+
+			// Auto sign-in after successful signup
+			await signIn.email(
+				{
+					email,
+					password,
+					callbackURL: '/'
+				},
+				{
+					onError: (context) => {
+						signupError =
+							context.error.message ||
+							'Signup succeeded but auto-login failed. Please log in manually.';
+					}
+				}
+			);
 		} catch (error) {
 			signupError = error instanceof Error ? error.message : 'An error occurred. Please try again.';
 			console.error('Signup error:', error);
