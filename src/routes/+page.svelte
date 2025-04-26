@@ -1,12 +1,9 @@
 <script lang="ts">
-	// External imports
-	import type { SvelteComponent } from 'svelte';
-
 	// Component imports
 	import MapCanvas from '$lib/components/MapCanvas.svelte';
 
 	// Type & constant imports
-	import type { SubjectMapData, LessonNodeData } from '$lib/types/map';
+	import type { SubjectMapData } from '$lib/types/map';
 	import type { Subject } from '$lib/types/subjects';
 	import { SUBJECTS } from '$lib/types/subjects';
 
@@ -86,7 +83,7 @@
 	<header>
 		<h1>Incept Layer 2 - Overworld</h1>
 		<nav class="subject-tabs">
-			{#each SUBJECTS as subject}
+			{#each SUBJECTS as subject (subject)}
 				<button on:click={() => selectSubject(subject)} class:active={selectedSubject === subject}>
 					{subject}
 				</button>
