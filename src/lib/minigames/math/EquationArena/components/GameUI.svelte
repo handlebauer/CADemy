@@ -108,7 +108,7 @@
 	<!-- Number Pad -->
 	<div class="number-pad">
 		<!-- Number buttons -->
-		{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as num}
+		{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as num (num)}
 			<button on:click={() => handleInput(num)} disabled={gameStatus !== GameStatus.SOLVING}>
 				{num}
 			</button>

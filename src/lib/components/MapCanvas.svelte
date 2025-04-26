@@ -1,6 +1,6 @@
 <script lang="ts">
 	// External imports
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import * as THREE from 'three';
 
 	// Type & constant imports
