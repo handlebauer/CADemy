@@ -31,14 +31,14 @@
 	};
 
 	// --- Local Component State (Timers, Intervals) ---
-	let gameTimerInterval: number | null = null;
-	let enemyAttackIntervalTimer: number | null = null; // Renamed to avoid conflict
-	let nextRoundTimeout: number | null = null;
-	let enemyDefeatedTimeout: number | null = null; // Timeout for victory screen delay
-	let damageDisplayTimeout: number | null = null; // Timeout for damage text display
-	let playerHitTimeout: number | null = null; // Timeout for player hit effect
-	let enemyHitTimeout: number | null = null; // Timeout for enemy hit effect
-	let shieldHitTimeout: number | null = null; // Timeout for shield hit effect
+	let gameTimerInterval: ReturnType<typeof setInterval> | null = null;
+	let enemyAttackIntervalTimer: ReturnType<typeof setInterval> | null = null; // Renamed to avoid conflict
+	let nextRoundTimeout: ReturnType<typeof setTimeout> | null = null;
+	let enemyDefeatedTimeout: ReturnType<typeof setTimeout> | null = null; // Timeout for victory screen delay
+	let damageDisplayTimeout: ReturnType<typeof setTimeout> | null = null; // Timeout for damage text display
+	let playerHitTimeout: ReturnType<typeof setTimeout> | null = null; // Timeout for player hit effect
+	let enemyHitTimeout: ReturnType<typeof setTimeout> | null = null; // Timeout for enemy hit effect
+	let shieldHitTimeout: ReturnType<typeof setTimeout> | null = null; // Timeout for shield hit effect
 	let pane: Pane;
 
 	// --- Local UI State ---
@@ -149,78 +149,115 @@
 		arenaStore.startGame();
 	}
 
-	// Reactive statement to handle transitions after state changes in the store
-	$: {
-		// Check if player health reached 0
-		if ($arenaStore.playerHealth <= 0 && $arenaStore.gameStatus !== GameStatus.GAME_OVER) {
-			arenaStore.setGameOver('Defeat!');
-			stopGameTimers();
+	// --- Reactive statements ---
+
+	// Reactive statement to handle status changes and transitions
+	let handlingPlayerDeath = false;
+	/* eslint-disable svelte/infinite-reactive-loop */
+	$: if (
+		$arenaStore.playerHealth <= 0 &&
+		$arenaStore.gameStatus !== GameStatus.GAME_OVER &&
+		!handlingPlayerDeath
+	) {
+		handlingPlayerDeath = true;
+		arenaStore.setGameOver('Defeat!');
+		stopGameTimers();
+		// Reset flag after execution
+		setTimeout(() => {
+			handlingPlayerDeath = false;
+		}, 0);
+	}
+	/* eslint-enable svelte/infinite-reactive-loop */
+
+	let handlingEnemyDeath = false;
+	/* eslint-disable svelte/infinite-reactive-loop */
+	$: if (
+		$arenaStore.enemyHealth <= 0 &&
+		$arenaStore.gameStatus !== GameStatus.GAME_OVER &&
+		!enemyDefeatedTimeout &&
+		!handlingEnemyDeath
+	) {
+		handlingEnemyDeath = true;
+		stopGameTimers();
+		enemyDefeatedAnimating = true;
+
+		enemyDefeatedTimeout = setTimeout(() => {
+			arenaStore.setGameOver('Victory!');
+			enemyDefeatedTimeout = null;
+		}, 1000);
+
+		// Reset flag after execution
+		setTimeout(() => {
+			handlingEnemyDeath = false;
+		}, 0);
+	}
+	/* eslint-enable svelte/infinite-reactive-loop */
+
+	$: if ($arenaStore.gameTime <= 0 && $arenaStore.gameStatus !== GameStatus.GAME_OVER) {
+		arenaStore.setGameOver('Time is up! Defeat!');
+		stopGameTimers();
+	}
+
+	let handlingResultState = false;
+	/* eslint-disable svelte/infinite-reactive-loop */
+	$: if (
+		$arenaStore.gameStatus === GameStatus.RESULT &&
+		!nextRoundTimeout &&
+		!handlingResultState
+	) {
+		handlingResultState = true;
+
+		if ($arenaStore.lastAnswerCorrect && $arenaStore.lastSpellCast === 'FIRE') {
+			displayedDamage = config.FIRE_DAMAGE;
+
+			if (damageDisplayTimeout) clearTimeout(damageDisplayTimeout);
+
+			if (enemyHitTimeout) clearTimeout(enemyHitTimeout);
+			enemyHit = true;
+			enemyHitTimeout = setTimeout(() => {
+				enemyHit = false;
+				enemyHitTimeout = null;
+			}, 200);
+
+			damageDisplayTimeout = setTimeout(() => {
+				displayedDamage = null;
+				damageDisplayTimeout = null;
+			}, 1000);
 		}
 
-		// Check if enemy health reached 0 - Add Delay before Victory Screen
-		if (
-			$arenaStore.enemyHealth <= 0 &&
-			$arenaStore.gameStatus !== GameStatus.GAME_OVER &&
-			!enemyDefeatedTimeout // Only start timeout if not already running
-		) {
-			// Stop further attacks/timers immediately
-			stopGameTimers();
-			// Trigger defeat animation
-			enemyDefeatedAnimating = true;
-			// Start delay before showing victory screen
-			enemyDefeatedTimeout = setTimeout(() => {
-				arenaStore.setGameOver('Victory!');
-				enemyDefeatedTimeout = null; // Clear the timeout ID
-			}, 1000); // 1 second delay
-		}
+		// Create a local copy of the timeout delay value to avoid reactivity issues
+		const timeoutDelay = config.RESULT_DISPLAY_DELAY;
 
-		// Check if time is up
-		if ($arenaStore.gameTime <= 0 && $arenaStore.gameStatus !== GameStatus.GAME_OVER) {
-			arenaStore.setGameOver('Time is up! Defeat!');
-			stopGameTimers();
-		}
-
-		// Automatically prepare next round after RESULT state is set
-		if ($arenaStore.gameStatus === GameStatus.RESULT && !nextRoundTimeout) {
-			// Show damage if fire spell was successful
-			if ($arenaStore.lastAnswerCorrect && $arenaStore.lastSpellCast === 'FIRE') {
-				displayedDamage = config.FIRE_DAMAGE; // Use local reactive variable
-				if (damageDisplayTimeout) clearTimeout(damageDisplayTimeout);
-
-				// Trigger enemy hit effect
-				if (enemyHitTimeout) clearTimeout(enemyHitTimeout);
-				enemyHit = true;
-				enemyHitTimeout = setTimeout(() => {
-					enemyHit = false;
-					enemyHitTimeout = null;
-				}, 200); // Duration of enemy hit effect
-
-				damageDisplayTimeout = setTimeout(() => {
-					displayedDamage = null;
-					damageDisplayTimeout = null;
-				}, 1000); // Display damage for 1 second
+		const timeoutId = setTimeout(() => {
+			if ($arenaStore.gameStatus !== GameStatus.GAME_OVER) {
+				arenaStore.prepareNextRound();
 			}
+			nextRoundTimeout = null;
+		}, timeoutDelay);
 
-			// Prepare next round timeout
-			nextRoundTimeout = setTimeout(() => {
-				if ($arenaStore.gameStatus !== GameStatus.GAME_OVER) {
-					// Check again before proceeding
-					arenaStore.prepareNextRound();
-				}
-				nextRoundTimeout = null; // Clear timeout ID after execution
-			}, config.RESULT_DISPLAY_DELAY); // Use local reactive config
-		}
-	}
+		nextRoundTimeout = timeoutId;
 
-	// Reactive statement to start timers when game enters SOLVING state
-	$: {
-		if ($arenaStore.gameStatus === GameStatus.SOLVING && !gameStarted) {
-			startEnemyAttackTimer();
-			startGameTimer();
-			gameStarted = true; // Mark timers as started
-			enemyDefeatedAnimating = false; // Reset defeat animation flag for new level
-		}
+		// Reset flag after execution
+		setTimeout(() => {
+			handlingResultState = false;
+		}, 0);
 	}
+	/* eslint-enable svelte/infinite-reactive-loop */
+
+	let handlingSolving = false;
+	/* eslint-disable svelte/infinite-reactive-loop */
+	$: if ($arenaStore.gameStatus === GameStatus.SOLVING && !gameStarted && !handlingSolving) {
+		handlingSolving = true;
+		startEnemyAttackTimer();
+		startGameTimer();
+		gameStarted = true;
+		enemyDefeatedAnimating = false;
+		// Reset flag after execution
+		setTimeout(() => {
+			handlingSolving = false;
+		}, 0);
+	}
+	/* eslint-enable svelte/infinite-reactive-loop */
 
 	// Helper function to restart the enemy attack timer when interval changes
 	function restartEnemyAttackTimer() {
@@ -234,6 +271,7 @@
 	// Helper function to encapsulate starting the enemy timer
 	function startEnemyAttackTimer() {
 		if (enemyAttackIntervalTimer) clearInterval(enemyAttackIntervalTimer); // Clear existing if any
+
 		enemyAttackIntervalTimer = setInterval(() => {
 			// Check status *inside* the interval callback as well
 			if (($arenaStore as ArenaState).gameStatus === GameStatus.SOLVING) {
@@ -285,6 +323,7 @@
 	// Helper function to start the game timer
 	function startGameTimer() {
 		if (gameTimerInterval) clearInterval(gameTimerInterval); // Clear existing if any
+
 		gameTimerInterval = setInterval(() => {
 			if (
 				($arenaStore as ArenaState).gameTime > 0 &&
@@ -316,6 +355,7 @@
 					// Default onChange just updates the local reactive config object
 					let onChangeHandler = (value: unknown) => {
 						config[def.key] = value as number; // Assuming number for simplicity
+
 						config = config; // Trigger Svelte reactivity
 					};
 
@@ -323,7 +363,9 @@
 					if (def.key === 'ENEMY_ATTACK_INTERVAL') {
 						onChangeHandler = (value) => {
 							config.ENEMY_ATTACK_INTERVAL = value as number;
+
 							config = config; // Trigger Svelte reactivity
+
 							restartEnemyAttackTimer();
 						};
 					}
@@ -352,15 +394,18 @@
 	});
 
 	// Derived state for display (remains in component)
+
 	$: formattedTime = `Time: ${Math.floor($arenaStore.gameTime / 60)}:${($arenaStore.gameTime % 60)
 		.toString()
 		.padStart(2, '0')}`;
 
 	// Calculate time taken for results screen
+
 	$: timeTakenSeconds =
 		$arenaStore.gameStatus === GameStatus.GAME_OVER
 			? $arenaStore.startTime - $arenaStore.gameTime
 			: 0;
+
 	$: formattedTimeTaken = `${Math.floor(timeTakenSeconds / 60)}:${(timeTakenSeconds % 60).toString().padStart(2, '0')}`;
 </script>
 
